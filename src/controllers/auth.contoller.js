@@ -5,6 +5,7 @@ import {
   fetchUserByEmail,
   fetchUserByUsername,
 } from "../services/auth.services.js";
+import { hashPassword, comparePassword } from "../utils/hashPassword.js";
 
 const register = async (req, res, next) => {
   try {
@@ -55,20 +56,22 @@ const register = async (req, res, next) => {
     );
     invalidInputError("Password", sanitizedPassword, validators.isValidLength);
 
-    const response = await insertUser(
+    const hashedPassword = await hashPassword(sanitizedPassword);
+
+    const newUser = await insertUser(
       sanitizedUsername,
       sanitizedEmail,
-      sanitizedPassword,
+      hashedPassword,
     );
 
-    console.log("Response:", response);
+    console.log(newUser);
 
     // De creat token
 
     res.status(201).json({
       success: true,
       message: "User successfully created",
-      user: response,
+      user: newUser,
     });
   } catch (err) {
     console.log(err.message || err);
@@ -91,21 +94,26 @@ const login = async (req, res, next) => {
     const sanitizedEmail = email.trim().toLowerCase();
     const sanitizedPassword = password.trim();
 
-    const foundEmail = await fetchUserByEmail(sanitizedEmail);
-    console.log("Found user", foundEmail);
+    const foundedUser = await fetchUserByEmail(sanitizedEmail);
+    console.log("Found user", foundedUser);
 
-    if (!foundEmail) {
+    if (!foundedUser) {
       return res
         .status(404)
         .json({ success: false, message: "Email not found" });
     }
 
-    console.log(foundEmail.password, sanitizedPassword);
+    console.log(foundedUser.password, sanitizedPassword);
 
-    if (foundEmail.password !== sanitizedPassword) {
+    const isPasswordMatch = await comparePassword(
+      sanitizedPassword,
+      foundedUser.password,
+    );
+
+    if (!isPasswordMatch) {
       return res
         .status(401)
-        .json({ success: false, message: "Invalid password" });
+        .json({ success: false, message: "Invalid credentials" });
     }
 
     // De creat token
@@ -113,7 +121,7 @@ const login = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: "Login successful",
-      user: foundEmail,
+      user: foundedUser,
     });
   } catch (err) {
     console.log(err.message || err);

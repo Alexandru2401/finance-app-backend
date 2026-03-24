@@ -20,10 +20,9 @@ const fetchUserByEmail = async (email) => {
 
 const fetchUserByUsername = async (username) => {
   const response = await pool.query(
-    "SELECT username FROM id, username, password WHERE username=$1",
+    "SELECT id, username, password FROM users WHERE username = $1",
     [username],
   );
-
   return response.rows[0];
 };
 
