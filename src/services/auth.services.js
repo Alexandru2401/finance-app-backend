@@ -9,4 +9,22 @@ const insertUser = async (username, email, password) => {
   return response.rows[0];
 };
 
-export { insertUser };
+const fetchUserByEmail = async (email) => {
+  const response = await pool.query(
+    "SELECT id, email, password FROM users WHERE email=$1",
+    [email],
+  );
+
+  return response.rows[0];
+};
+
+const fetchUserByUsername = async (username) => {
+  const response = await pool.query(
+    "SELECT username FROM id, username, password WHERE username=$1",
+    [username],
+  );
+
+  return response.rows[0];
+};
+
+export { insertUser, fetchUserByEmail, fetchUserByUsername };
