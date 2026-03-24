@@ -10,4 +10,5 @@ export const {
   DB_NAME,
   DB_USER,
   DB_PASSWORD,
+  BASE_PATH,
 } = process.env;
