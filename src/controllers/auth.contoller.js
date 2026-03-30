@@ -13,7 +13,6 @@ import { createAccesToken, createRefreshToken } from "../utils/jwtHelperFn.js";
 const register = async (req, res, next) => {
   try {
     const { username, email, password } = req.body;
-    console.log(username, email, password);
 
     if (!username || !email || !password) {
       const error = new Error("All fields are required");
@@ -42,7 +41,6 @@ const register = async (req, res, next) => {
     invalidInputError("Password", sanitizedPassword, validators.isValidLength);
 
     const foundUsername = await fetchUserByUsername(sanitizedUsername);
-    console.log("Found username", foundUsername);
 
     if (foundUsername) {
       return res
@@ -51,7 +49,6 @@ const register = async (req, res, next) => {
     }
 
     const foundEmail = await fetchUserByEmail(sanitizedEmail);
-    console.log("Found user", foundEmail);
 
     if (foundEmail) {
       return res
@@ -66,8 +63,6 @@ const register = async (req, res, next) => {
       sanitizedEmail,
       hashedPassword,
     );
-
-    console.log(newUser);
 
     // De creat token
     const accessToken = createAccesToken({
@@ -89,8 +84,6 @@ const register = async (req, res, next) => {
       refreshToken,
       refreshTokenExpiry,
     );
-
-    console.log(insertRefrehToken);
 
     if (!insertRefrehToken) {
       return res
@@ -125,7 +118,6 @@ const register = async (req, res, next) => {
 const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
-    console.log(email, password);
 
     if (!email || !password) {
       const error = new Error("All fields are required");
@@ -146,16 +138,12 @@ const login = async (req, res, next) => {
     invalidInputError("Password", sanitizedPassword, validators.isValidLength);
 
     const foundedUser = await fetchUserByEmail(sanitizedEmail);
-    console.log("Found user", foundedUser);
 
     if (!foundedUser) {
       return res
         .status(404)
         .json({ success: false, message: "Email not found" });
     }
-
-    console.log(foundedUser.password, sanitizedPassword);
-
     const isPasswordMatch = await comparePassword(
       sanitizedPassword,
       foundedUser.password,
@@ -198,6 +186,8 @@ const login = async (req, res, next) => {
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
 
+    delete foundedUser.password;
+
     res.status(200).json({
       success: true,
       message: "Login successful",
@@ -211,7 +201,6 @@ const login = async (req, res, next) => {
 
 const logout = async (req, res, next) => {
   try {
-    console.log(req.cookies);
     const refreshToken = req.cookies.refreshToken;
 
     if (refreshToken) {
@@ -230,7 +219,6 @@ const logout = async (req, res, next) => {
       sameSite: "strict",
     });
 
-    console.log("Successfuly logout");
     return res
       .status(200)
       .json({ success: true, message: "Successfuly logout" });
