@@ -26,4 +26,23 @@ const fetchUserByUsername = async (username) => {
   return response.rows[0];
 };
 
-export { insertUser, fetchUserByEmail, fetchUserByUsername };
+const insertRefreshToken = async (userId, refreshToken, expires_at) => {
+  const response = await pool.query(
+    "INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3) RETURNING user_id, token",
+    [userId, refreshToken, expires_at],
+  );
+
+  return response.rows[0];
+};
+
+const deleteRefreshToken = async (token) => {
+  await pool.query("DELETE FROM refresh_tokens WHERE token = $1", [token]);
+};
+
+export {
+  insertUser,
+  fetchUserByEmail,
+  fetchUserByUsername,
+  insertRefreshToken,
+  deleteRefreshToken,
+};
