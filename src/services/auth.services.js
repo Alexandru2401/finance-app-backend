@@ -39,10 +39,19 @@ const deleteRefreshToken = async (token) => {
   await pool.query("DELETE FROM refresh_tokens WHERE token = $1", [token]);
 };
 
+const fetchUserById = async (id) => {
+  const response = await pool.query(
+    "SELECT id, email, username FROM users WHERE id=$1",
+    [id],
+  );
+  return response.rows[0];
+};
+
 export {
   insertUser,
   fetchUserByEmail,
   fetchUserByUsername,
   insertRefreshToken,
   deleteRefreshToken,
+  fetchUserById,
 };

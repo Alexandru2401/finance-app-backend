@@ -14,4 +14,5 @@ export const {
   SALT_ROUNDS,
   JWT_SECRET,
   JWT_REFRESH_TOKEN,
+  DATABASE_URL,
 } = process.env;
