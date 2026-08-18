@@ -4,7 +4,7 @@ import { BASE_PATH } from "./config/env.js";
 import cors from "cors";
 
 import authRouter from "./routes/auth.routes.js";
-
+// test
 import errorMiddleware from "./middleware/error.middleware.js";
 
 const app = express();
