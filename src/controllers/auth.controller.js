@@ -3,36 +3,29 @@ import { invalidInputError } from "../utils/customError.js";
 import {
   insertUser,
   fetchUserByEmail,
-  fetchUserByUsername,
   fetchUserById,
   insertRefreshToken,
   deleteRefreshToken,
+  updateUserProfile
 } from "../services/auth.services.js";
 import { hashPassword, comparePassword } from "../utils/hashPassword.js";
 import { createAccesToken, createRefreshToken } from "../utils/jwtHelperFn.js";
 
 const register = async (req, res, next) => {
   try {
-    const { username, email, password } = req.body;
+    const { email, password } = req.body;
 
-    if (!username || !email || !password) {
+    if (!email || !password) {
       const error = new Error("All fields are required");
       error.status = 400;
       throw error;
     }
 
     // TO DO = FUNCTIE CUSTOM DE SANITIZARE
-    const sanitizedUsername = username.trim().toLowerCase();
     const sanitizedEmail = email.trim().toLowerCase();
     const sanitizedPassword = password.trim();
 
     // VALIDARE INPUT-URI
-    invalidInputError(
-      "Username",
-      sanitizedUsername,
-      validators.isValidLength,
-      validators.isValidUserName,
-    );
     invalidInputError(
       "Email",
       sanitizedEmail,
@@ -40,14 +33,6 @@ const register = async (req, res, next) => {
       validators.isValidEmail,
     );
     invalidInputError("Password", sanitizedPassword, validators.isValidLength);
-
-    const foundUsername = await fetchUserByUsername(sanitizedUsername);
-
-    if (foundUsername) {
-      return res
-        .status(409)
-        .json({ success: false, message: "Username already exists" });
-    }
 
     const foundEmail = await fetchUserByEmail(sanitizedEmail);
 
@@ -59,21 +44,17 @@ const register = async (req, res, next) => {
 
     const hashedPassword = await hashPassword(sanitizedPassword);
 
-    const newUser = await insertUser(
-      sanitizedUsername,
-      sanitizedEmail,
-      hashedPassword,
-    );
+    const newUser = await insertUser(sanitizedEmail, hashedPassword);
 
     // De creat token
     const accessToken = createAccesToken({
-      id: newUser.id,
+      user_id: newUser.user_id,
       email: newUser.email,
       plan_type: newUser.plan_type,
     });
 
     const refreshToken = createRefreshToken({
-      id: newUser.id,
+      user_id: newUser.user_id,
       email: newUser.email,
       plan_type: newUser.plan_type,
     });
@@ -81,7 +62,7 @@ const register = async (req, res, next) => {
     const refreshTokenExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
     const insertRefrehToken = await insertRefreshToken(
-      newUser.id,
+      newUser.user_id,
       refreshToken,
       refreshTokenExpiry,
     );
@@ -158,18 +139,18 @@ const login = async (req, res, next) => {
 
     // De creat token
     const accessToken = createAccesToken({
-      id: foundedUser.id,
+      user_id: foundedUser.user_id,
       email: foundedUser.email,
       plan_type: foundedUser.plan_type,
     });
     const refreshToken = createRefreshToken({
-      id: foundedUser.id,
+      user_id: foundedUser.user_id,
       email: foundedUser.email,
       plan_type: foundedUser.plan_type,
     });
 
     await insertRefreshToken(
-      foundedUser.id,
+      foundedUser.user_id,
       refreshToken,
       new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     );
@@ -194,6 +175,40 @@ const login = async (req, res, next) => {
       message: "Login successful",
       user: foundedUser,
     });
+  } catch (err) {
+    console.log(err.message || err);
+    next(err);
+  }
+};
+
+const updateUserInfo = async (req, res, next) => {
+  try {
+    const { username, currency } = req.body;
+
+    if (!username || !currency) {
+      const error = new Error("Username and currency are required");
+      error.status = 400;
+      throw error;
+    }
+
+    const sanitizedUsername = username.trim();
+    invalidInputError("Username", sanitizedUsername, validators.isValidLength);
+
+    // validezi currency contra enum-ului, altfel Postgres arunca 500 urat
+    const allowedCurrencies = ["USD", "RON", "EUR"];
+    if (!allowedCurrencies.includes(currency)) {
+      const error = new Error("Invalid currency");
+      error.status = 400;
+      throw error;
+    }
+
+    const updatedUser = await updateUserProfile(
+      req.user.user_id, 
+      sanitizedUsername,
+      currency,
+    );
+
+    res.status(200).json({ success: true, user: updatedUser });
   } catch (err) {
     console.log(err.message || err);
     next(err);
@@ -231,7 +246,8 @@ const logout = async (req, res, next) => {
 
 const checkMe = async (req, res, next) => {
   try {
-    const user = await fetchUserById(req.user.id);
+    console.log("req.user", req.user);
+    const user = await fetchUserById(req.user.user_id);
     if (!user) {
       return res
         .status(404)
@@ -243,7 +259,7 @@ const checkMe = async (req, res, next) => {
   }
 };
 
-export { register, login, logout, checkMe };
+export { register, login, logout, checkMe, updateUserInfo };
 
 //  id                  UUID DEFAULT gen_random_uuid() PRIMARY KEY,
 // username            VARCHAR(100) UNIQUE NOT NULL,

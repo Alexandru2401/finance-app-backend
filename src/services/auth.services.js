@@ -1,9 +1,9 @@
 import pool from "../db/db.js";
 
-const insertUser = async (username, email, password) => {
+const insertUser = async (email, password) => {
   const response = await pool.query(
-    "INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id, username, email, plan_type, is_active, is_verified, created_at",
-    [username, email, password],
+    "INSERT INTO users (email, password) VALUES ($1, $2) RETURNING user_id, username, email, plan_type, is_active, created_at",
+    [email, password],
   );
 
   return response.rows[0];
@@ -11,7 +11,7 @@ const insertUser = async (username, email, password) => {
 
 const fetchUserByEmail = async (email) => {
   const response = await pool.query(
-    "SELECT id, email, password FROM users WHERE email=$1",
+    "SELECT user_id, email, plan_type, password FROM users WHERE email=$1",
     [email],
   );
 
@@ -20,7 +20,7 @@ const fetchUserByEmail = async (email) => {
 
 const fetchUserByUsername = async (username) => {
   const response = await pool.query(
-    "SELECT id, username, password FROM users WHERE username = $1",
+    "SELECT user_id, username, password FROM users WHERE username = $1",
     [username],
   );
   return response.rows[0];
@@ -41,8 +41,16 @@ const deleteRefreshToken = async (token) => {
 
 const fetchUserById = async (id) => {
   const response = await pool.query(
-    "SELECT id, email, username FROM users WHERE id=$1",
+    "SELECT user_id, email, username FROM users WHERE user_id=$1",
     [id],
+  );
+  return response.rows[0];
+};
+
+const updateUserProfile = async (userId, username, currency) => {
+  const response = await pool.query(
+    "UPDATE users SET username = $1, currency = $2 WHERE user_id = $3 RETURNING user_id, username, currency",
+    [username, currency, userId],
   );
   return response.rows[0];
 };
@@ -54,4 +62,5 @@ export {
   insertRefreshToken,
   deleteRefreshToken,
   fetchUserById,
+  updateUserProfile,
 };
