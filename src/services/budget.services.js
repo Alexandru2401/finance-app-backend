@@ -71,9 +71,25 @@ const fetchBudgetSummary = async (userId) => {
   return response.rows;
 };
 
+// top N cele mai mari cheltuieli
+const fetchTopExpenses = async (userId, limit = 5) => {
+  const response = await pool.query(
+    `SELECT b.item_id, b.category_id, c.name AS category,
+            b.title, b.amount, b.date, b.notes, b.created_at
+     FROM budget_items b
+     LEFT JOIN categories c ON c.category_id = b.category_id
+     WHERE b.user_id = $1 AND b.type = 'expense'
+     ORDER BY b.amount DESC
+     LIMIT $2`,
+    [userId, limit],
+  );
+  return response.rows;
+};
+
 export {
   fetchBudgetItems,
   fetchBudgetItemById,
   fetchCategories,
   fetchBudgetSummary,
+  fetchTopExpenses,
 };

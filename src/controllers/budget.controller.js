@@ -3,6 +3,7 @@ import {
   fetchBudgetItemById,
   fetchCategories,
   fetchBudgetSummary,
+  fetchTopExpenses,
 } from "../services/budget.services.js";
 
 // GET /budget  (?type=expense&limit=5)
@@ -70,4 +71,57 @@ const getCategories = async (req, res, next) => {
   }
 };
 
-export { getBudgetItems, getBudgetItem, getBudgetSummary, getCategories };
+// GET /budget/income
+const getIncome = async (req, res, next) => {
+  try {
+    const items = await fetchBudgetItems(req.user.user_id, { type: "income" });
+    res.status(200).json({ success: true, items });
+  } catch (err) {
+    console.log(err.message || err);
+    next(err);
+  }
+};
+
+// GET /budget/spending
+const getSpending = async (req, res, next) => {
+  try {
+    const items = await fetchBudgetItems(req.user.user_id, { type: "expense" });
+    res.status(200).json({ success: true, items });
+  } catch (err) {
+    console.log(err.message || err);
+    next(err);
+  }
+};
+
+// GET /budget/spending/top
+const getTopSpending = async (req, res, next) => {
+  try {
+    const topExpenses = await fetchTopExpenses(req.user.user_id, 5);
+    res.status(200).json({ success: true, topExpenses });
+  } catch (err) {
+    console.log(err.message || err);
+    next(err);
+  }
+};
+
+// GET /budget/savings
+const getSavings = async (req, res, next) => {
+  try {
+    const items = await fetchBudgetItems(req.user.user_id, { type: "savings" });
+    res.status(200).json({ success: true, items });
+  } catch (err) {
+    console.log(err.message || err);
+    next(err);
+  }
+};
+
+export {
+  getBudgetItems,
+  getBudgetItem,
+  getBudgetSummary,
+  getCategories,
+  getIncome,
+  getSpending,
+  getTopSpending,
+  getSavings,
+};
