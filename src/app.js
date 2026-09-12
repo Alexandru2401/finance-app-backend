@@ -6,7 +6,6 @@ import morgan from "morgan";
 
 import authRouter from "./routes/auth.routes.js";
 import budgetRouter from "./routes/budget.routes.js";
-
 import errorMiddleware from "./middleware/error.middleware.js";
 
 const app = express();
