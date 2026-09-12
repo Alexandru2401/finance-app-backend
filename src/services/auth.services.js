@@ -47,6 +47,14 @@ const fetchUserById = async (id) => {
   return response.rows[0];
 };
 
+const fetchUserInfoById = async (id) => {
+  const response = await pool.query(
+    "SELECT user_id, username, email, plan_type, is_active, created_at, language, currency FROM users WHERE user_id=$1",
+    [id],
+  );
+  return response.rows[0];
+};
+
 const updateUserProfile = async (userId, username, currency) => {
   const response = await pool.query(
     "UPDATE users SET username = $1, currency = $2 WHERE user_id = $3 RETURNING user_id, username, currency",
@@ -62,5 +70,6 @@ export {
   insertRefreshToken,
   deleteRefreshToken,
   fetchUserById,
+  fetchUserInfoById,
   updateUserProfile,
 };

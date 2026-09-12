@@ -5,6 +5,7 @@ import {
   register,
   checkMe,
   updateUserInfo,
+  getUserInfo,
 } from "../controllers/auth.controller.js";
 import { validateToken } from "../utils/jwtHelperFn.js";
 
@@ -19,5 +20,7 @@ authRouter.patch("/user-info", validateToken, updateUserInfo);
 authRouter.post("/logout", validateToken, logout);
 
 authRouter.get("/check-me", validateToken, checkMe);
+
+authRouter.get("/user-info", validateToken, getUserInfo);
 
 export default authRouter;
