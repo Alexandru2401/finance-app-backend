@@ -4,6 +4,7 @@ import {
   fetchCategories,
   fetchBudgetSummary,
   fetchTopExpenses,
+  fetchBudgetTrend,
 } from "../services/budget.services.js";
 
 // GET /budget  (?type=expense&limit=5)
@@ -115,6 +116,24 @@ const getSavings = async (req, res, next) => {
   }
 };
 
+// GET /budget/budget-trend  (income vs expense pe ultimele 6 luni)
+const getBudgetTrend = async (req, res, next) => {
+  try {
+    const rows = await fetchBudgetTrend(req.user.user_id, 6);
+
+    const trend = rows.map((row) => ({
+      month: row.month,
+      income: Number(row.income),
+      expense: Number(row.expense),
+    }));
+
+    res.status(200).json({ success: true, trend });
+  } catch (err) {
+    console.log(err.message || err);
+    next(err);
+  }
+};
+
 export {
   getBudgetItems,
   getBudgetItem,
@@ -124,4 +143,5 @@ export {
   getSpending,
   getTopSpending,
   getSavings,
+  getBudgetTrend,
 };

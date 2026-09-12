@@ -6,6 +6,7 @@ import morgan from "morgan";
 
 import authRouter from "./routes/auth.routes.js";
 import budgetRouter from "./routes/budget.routes.js";
+import transactionsRouter from "./routes/transactions.routes.js";
 import errorMiddleware from "./middleware/error.middleware.js";
 
 const app = express();
@@ -17,6 +18,7 @@ app.use(morgan("dev"));
 
 app.use(`${BASE_PATH}/auth`, authRouter);
 app.use(`${BASE_PATH}/budget`, budgetRouter);
+app.use(`${BASE_PATH}/transactions`, transactionsRouter);
 
 app.use(errorMiddleware);
 

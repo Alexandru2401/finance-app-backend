@@ -86,10 +86,36 @@ const fetchTopExpenses = async (userId, limit = 5) => {
   return response.rows;
 };
 
+// income vs expense pe ultimele N luni (pt grafic de trend)
+// lunile sunt generate direct in SQL (generate_series), ca sa nu depinda
+// de timezone-ul serverului Node vs. cel al bazei de date
+const fetchBudgetTrend = async (userId, months = 6) => {
+  const response = await pool.query(
+    `WITH months AS (
+       SELECT generate_series(
+         date_trunc('month', CURRENT_DATE) - ($2 - 1) * INTERVAL '1 month',
+         date_trunc('month', CURRENT_DATE),
+         INTERVAL '1 month'
+       ) AS month
+     )
+     SELECT to_char(m.month, 'YYYY-MM') AS month,
+            COALESCE(SUM(b.amount) FILTER (WHERE b.type = 'income'), 0) AS income,
+            COALESCE(SUM(b.amount) FILTER (WHERE b.type = 'expense'), 0) AS expense
+     FROM months m
+     LEFT JOIN budget_items b
+       ON date_trunc('month', b.date) = m.month AND b.user_id = $1
+     GROUP BY m.month
+     ORDER BY m.month ASC`,
+    [userId, months],
+  );
+  return response.rows;
+};
+
 export {
   fetchBudgetItems,
   fetchBudgetItemById,
   fetchCategories,
   fetchBudgetSummary,
   fetchTopExpenses,
+  fetchBudgetTrend,
 };
