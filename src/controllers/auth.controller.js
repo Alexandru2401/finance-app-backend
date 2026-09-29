@@ -4,6 +4,7 @@ import {
   insertUser,
   fetchUserByEmail,
   fetchUserById,
+  fetchUserInfoById,
   insertRefreshToken,
   deleteRefreshToken,
   updateUserProfile
@@ -259,7 +260,21 @@ const checkMe = async (req, res, next) => {
   }
 };
 
-export { register, login, logout, checkMe, updateUserInfo };
+const getUserInfo = async (req, res, next) => {
+  try {
+    const user = await fetchUserInfoById(req.user.user_id);
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+    res.status(200).json({ success: true, user });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export { register, login, logout, checkMe, updateUserInfo, getUserInfo };
 
 //  id                  UUID DEFAULT gen_random_uuid() PRIMARY KEY,
 // username            VARCHAR(100) UNIQUE NOT NULL,

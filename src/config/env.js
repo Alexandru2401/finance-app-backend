@@ -10,4 +10,5 @@ export const {
   JWT_SECRET,
   JWT_REFRESH_TOKEN,
   DATABASE_URL,
+  CLIENT_URL,
 } = process.env;
