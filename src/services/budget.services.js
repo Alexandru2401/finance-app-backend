@@ -6,7 +6,7 @@ const fetchBudgetItems = async (userId, filters = {}) => {
   const values = [userId];
   let query = `
     SELECT b.item_id, b.type, b.category_id, c.name AS category,
-           b.title, b.amount, b.date, b.notes, b.created_at
+           b.amount, b.date, b.notes, b.created_at
     FROM budget_items b
     LEFT JOIN categories c ON c.category_id = b.category_id
     WHERE b.user_id = $1
@@ -34,7 +34,7 @@ const fetchBudgetItems = async (userId, filters = {}) => {
 const fetchBudgetItemById = async (itemId, userId) => {
   const response = await pool.query(
     `SELECT b.item_id, b.type, b.category_id, c.name AS category,
-            b.title, b.amount, b.date, b.notes, b.created_at
+            b.amount, b.date, b.notes, b.created_at
      FROM budget_items b
      LEFT JOIN categories c ON c.category_id = b.category_id
      WHERE b.item_id = $1 AND b.user_id = $2`,
@@ -46,7 +46,8 @@ const fetchBudgetItemById = async (itemId, userId) => {
 // categoriile userului (pt dropdown-ul din form)
 const fetchCategories = async (userId, type) => {
   const values = [userId];
-  let query = `SELECT category_id, type, name FROM categories WHERE user_id = $1`;
+  let query = `SELECT category_id, type, name, key FROM categories
+             WHERE (user_id = $1 OR user_id IS NULL)`;
 
   if (type) {
     query += ` AND type = $2`;
@@ -75,7 +76,7 @@ const fetchBudgetSummary = async (userId) => {
 const fetchTopExpenses = async (userId, limit = 5) => {
   const response = await pool.query(
     `SELECT b.item_id, b.category_id, c.name AS category,
-            b.title, b.amount, b.date, b.notes, b.created_at
+            b.amount, b.date, b.notes, b.created_at
      FROM budget_items b
      LEFT JOIN categories c ON c.category_id = b.category_id
      WHERE b.user_id = $1 AND b.type = 'expense'
