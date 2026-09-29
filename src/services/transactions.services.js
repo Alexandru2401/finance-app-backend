@@ -12,37 +12,65 @@ const toSafeInt = (value, fallback, max = Infinity) => {
 const fetchTransactions = async (userId, filters = {}) => {
   const {
     search,
-    type,            // 'income' | 'expense'
+    type, // 'income' | 'expense'
     categoryId,
-    year, month, day,
-    minAmount, maxAmount,
-    sort = 'newest',              // 'newest' | 'oldest' | 'highest' | 'lowest'
+    year,
+    month,
+    day,
+    minAmount,
+    maxAmount,
+    sort = "newest", // 'newest' | 'oldest' | 'highest' | 'lowest'
   } = filters;
 
   const page = toSafeInt(filters.page, 1);
   const perPage = toSafeInt(filters.perPage, 10, MAX_PER_PAGE);
 
-  const conditions = ['b.user_id = $1'];
+  const conditions = ["b.user_id = $1"];
   const values = [userId];
   let i = 2;
 
-  if (search)     { conditions.push(`b.title ILIKE $${i++}`); values.push(`%${search}%`); }
-  if (type)       { conditions.push(`b.type = $${i++}`);       values.push(type); }
-  if (categoryId) { conditions.push(`b.category_id = $${i++}`); values.push(categoryId); }
-  if (year)       { conditions.push(`EXTRACT(YEAR  FROM b.date) = $${i++}`); values.push(year); }
-  if (month)      { conditions.push(`EXTRACT(MONTH FROM b.date) = $${i++}`); values.push(month); }
-  if (day)        { conditions.push(`EXTRACT(DAY   FROM b.date) = $${i++}`); values.push(day); }
-  if (minAmount != null) { conditions.push(`b.amount >= $${i++}`); values.push(minAmount); }
-  if (maxAmount != null) { conditions.push(`b.amount <= $${i++}`); values.push(maxAmount); }
+  if (search) {
+    conditions.push(`b.title ILIKE $${i++}`);
+    values.push(`%${search}%`);
+  }
+  if (type) {
+    conditions.push(`b.type = $${i++}`);
+    values.push(type);
+  }
+  if (categoryId) {
+    conditions.push(`b.category_id = $${i++}`);
+    values.push(categoryId);
+  }
+  if (year) {
+    conditions.push(`EXTRACT(YEAR  FROM b.date) = $${i++}`);
+    values.push(year);
+  }
+  if (month) {
+    conditions.push(`EXTRACT(MONTH FROM b.date) = $${i++}`);
+    values.push(month);
+  }
+  if (day) {
+    conditions.push(`EXTRACT(DAY   FROM b.date) = $${i++}`);
+    values.push(day);
+  }
+  if (minAmount != null) {
+    conditions.push(`b.amount >= $${i++}`);
+    values.push(minAmount);
+  }
+  if (maxAmount != null) {
+    conditions.push(`b.amount <= $${i++}`);
+    values.push(maxAmount);
+  }
 
-  const where = conditions.join(' AND ');
+  const where = conditions.join(" AND ");
 
-  const orderBy = {
-    newest:  'b.date DESC',
-    oldest:  'b.date ASC',
-    highest: 'b.amount DESC',
-    lowest:  'b.amount ASC',
-  }[sort] ?? 'b.date DESC';
+  const orderBy =
+    {
+      newest: "b.date DESC",
+      oldest: "b.date ASC",
+      highest: "b.amount DESC",
+      lowest: "b.amount ASC",
+    }[sort] ?? "b.date DESC";
 
   const offset = (page - 1) * perPage;
 
@@ -70,10 +98,24 @@ const fetchTransactions = async (userId, filters = {}) => {
   ]);
 
   return {
-    rows: list.rows.map(r => ({ ...r, amount: Number(r.amount) })),
+    rows: list.rows.map((r) => ({ ...r, amount: Number(r.amount) })),
     total: Number(totals.rows[0].count),
     net: Number(totals.rows[0].net),
   };
 };
 
-export { fetchTransactions };
+const addNewTransaction = async (userId, transaction) => {
+  const response = await pool.query(
+    "INSERT INTO budget_items (user_id, type, category_id, amount, date ) VALUES ($1, $2, $3, $4, $5) RETURNING item_id",
+    [
+      userId,
+      transaction.type,
+      transaction.categoryId || null,
+      transaction.amount,
+      transaction.date,
+    ],
+  );
+  return response.rows[0].item_id;
+};
+
+export { fetchTransactions, addNewTransaction };

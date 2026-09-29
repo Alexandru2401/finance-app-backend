@@ -1,4 +1,7 @@
-import { fetchTransactions } from "../services/transactions.services.js";
+import {
+  fetchTransactions,
+  addNewTransaction,
+} from "../services/transactions.services.js";
 
 // GET /transactions  (?type=expense&categoryId=..&year=..&month=..&day=..&minAmount=..&maxAmount=..&search=..&sort=newest&page=1&perPage=10)
 const getTransactions = async (req, res, next) => {
@@ -38,4 +41,24 @@ const getTransactions = async (req, res, next) => {
   }
 };
 
-export { getTransactions };
+const addTransaction = async (req, res, next) => {
+  try {
+    const { type, amount, date, categoryId } = req.body;
+    console.log(req.user.user_id);
+    await addNewTransaction(req.user.user_id, {
+      title,
+      type,
+      amount,
+      date,
+      categoryId,
+    });
+    res
+      .status(201)
+      .json({ success: true, message: "Transaction added successfully" });
+  } catch (err) {
+    console.log(err.message || err);
+    next(err);
+  }
+};
+
+export { getTransactions, addTransaction };
