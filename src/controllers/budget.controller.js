@@ -42,10 +42,10 @@ const getBudgetItem = async (req, res, next) => {
   }
 };
 
-// GET /budget/summary
+// GET /budget/summary  (?period=last-month)
 const getBudgetSummary = async (req, res, next) => {
   try {
-    const rows = await fetchBudgetSummary(req.user.user_id);
+    const rows = await fetchBudgetSummary(req.user.user_id, req.query.period);
 
     // normalizezi in ceva usor de folosit pe frontend
     const summary = { income: 0, expense: 0, savings: 0 };
@@ -94,10 +94,14 @@ const getSpending = async (req, res, next) => {
   }
 };
 
-// GET /budget/spending/top
+// GET /budget/spending/top  (?period=last-month)
 const getTopSpending = async (req, res, next) => {
   try {
-    const topExpenses = await fetchTopExpenses(req.user.user_id, 5);
+    const topExpenses = await fetchTopExpenses(
+      req.user.user_id,
+      5,
+      req.query.period,
+    );
     res.status(200).json({ success: true, topExpenses });
   } catch (err) {
     console.log(err.message || err);
@@ -116,10 +120,10 @@ const getSavings = async (req, res, next) => {
   }
 };
 
-// GET /budget/budget-trend  (income vs expense pe ultimele 6 luni)
+// GET /budget/budget-trend  (?period=last-6, implicit ultimele 6 luni)
 const getBudgetTrend = async (req, res, next) => {
   try {
-    const rows = await fetchBudgetTrend(req.user.user_id, 6);
+    const rows = await fetchBudgetTrend(req.user.user_id, req.query.period);
 
     const trend = rows.map((row) => ({
       month: row.month,

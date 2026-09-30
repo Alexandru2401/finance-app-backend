@@ -60,26 +60,56 @@ const fetchCategories = async (userId, type) => {
   return response.rows;
 };
 
+// intervalele de timp acceptate in ?period= : [start, end) ca expresii SQL
+// calculate in SQL (CURRENT_DATE), ca sa nu depinda de timezone-ul serverului Node
+// lunile sunt calendaristice: last-month = toata luna trecuta, nu ultimele 30 de zile
+const MONTH_START = `date_trunc('month', CURRENT_DATE)`;
+const NEXT_MONTH = `(${MONTH_START} + INTERVAL '1 month')`;
+
+const PERIOD_RANGES = {
+  "this-month": { start: MONTH_START, end: NEXT_MONTH },
+  "last-month": {
+    start: `(${MONTH_START} - INTERVAL '1 month')`,
+    end: MONTH_START,
+  },
+  "last-3": { start: `(${MONTH_START} - INTERVAL '2 months')`, end: NEXT_MONTH },
+  "last-6": { start: `(${MONTH_START} - INTERVAL '5 months')`, end: NEXT_MONTH },
+  "this-year": { start: `date_trunc('year', CURRENT_DATE)`, end: NEXT_MONTH },
+};
+
+// doar cheile proprii (ex: "constructor" nu e un period valid)
+const getPeriodRange = (period) =>
+  Object.hasOwn(PERIOD_RANGES, period) ? PERIOD_RANGES[period] : undefined;
+
+// conditia WHERE pt period; fara period (sau valoare necunoscuta) => fara filtru
+const periodCondition = (period, column = "date") => {
+  const range = getPeriodRange(period);
+  if (!range) return "TRUE";
+  return `${column} >= ${range.start} AND ${column} < ${range.end}`;
+};
+
 // sumele pe tip, pt cardurile de overview (income/expenses/savings/net)
-const fetchBudgetSummary = async (userId) => {
+// fara period (sau valoare necunoscuta) => toate item-urile
+const fetchBudgetSummary = async (userId, period) => {
   const response = await pool.query(
     `SELECT type, COALESCE(SUM(amount), 0) AS total
      FROM budget_items
-     WHERE user_id = $1
+     WHERE user_id = $1 AND ${periodCondition(period)}
      GROUP BY type`,
     [userId],
   );
   return response.rows;
 };
 
-// top N cele mai mari cheltuieli
-const fetchTopExpenses = async (userId, limit = 5) => {
+// top N cele mai mari cheltuieli (optional doar din period)
+const fetchTopExpenses = async (userId, limit = 5, period) => {
   const response = await pool.query(
     `SELECT b.item_id, b.category_id, c.name AS category,
             b.amount, b.date, b.notes, b.created_at
      FROM budget_items b
      LEFT JOIN categories c ON c.category_id = b.category_id
      WHERE b.user_id = $1 AND b.type = 'expense'
+       AND ${periodCondition(period, "b.date")}
      ORDER BY b.amount DESC
      LIMIT $2`,
     [userId, limit],
@@ -87,15 +117,18 @@ const fetchTopExpenses = async (userId, limit = 5) => {
   return response.rows;
 };
 
-// income vs expense pe ultimele N luni (pt grafic de trend)
+// income vs expense pe luni, cate un punct pt fiecare luna din period (pt grafic de trend)
+// fara period (sau valoare necunoscuta) => ultimele 6 luni
 // lunile sunt generate direct in SQL (generate_series), ca sa nu depinda
 // de timezone-ul serverului Node vs. cel al bazei de date
-const fetchBudgetTrend = async (userId, months = 6) => {
+const fetchBudgetTrend = async (userId, period) => {
+  const range = getPeriodRange(period) ?? PERIOD_RANGES["last-6"];
+
   const response = await pool.query(
     `WITH months AS (
        SELECT generate_series(
-         date_trunc('month', CURRENT_DATE) - ($2 - 1) * INTERVAL '1 month',
-         date_trunc('month', CURRENT_DATE),
+         ${range.start},
+         ${range.end} - INTERVAL '1 month',
          INTERVAL '1 month'
        ) AS month
      )
@@ -107,7 +140,7 @@ const fetchBudgetTrend = async (userId, months = 6) => {
        ON date_trunc('month', b.date) = m.month AND b.user_id = $1
      GROUP BY m.month
      ORDER BY m.month ASC`,
-    [userId, months],
+    [userId],
   );
   return response.rows;
 };
