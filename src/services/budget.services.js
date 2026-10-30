@@ -60,70 +60,74 @@ const fetchCategories = async (userId, type) => {
   return response.rows;
 };
 
-// intervalele de timp acceptate in ?period= : [start, end) ca expresii SQL
+// intervalele presetate din ?period= : [start, end) ca expresii SQL
 // calculate in SQL (CURRENT_DATE), ca sa nu depinda de timezone-ul serverului Node
-// lunile sunt calendaristice: last-month = toata luna trecuta, nu ultimele 30 de zile
+// this-month = toata luna curenta, last-month = toata luna trecuta (nu ultimele 30 de zile)
+// last-N = de la inceputul lunii de acum N-1 luni pana azi inclusiv
+//   (ex. pe 30 oct, last-3 = 1 aug - 30 oct; tranzactiile cu data in viitor nu intra)
 const MONTH_START = `date_trunc('month', CURRENT_DATE)`;
 const NEXT_MONTH = `(${MONTH_START} + INTERVAL '1 month')`;
+const TOMORROW = `(CURRENT_DATE + INTERVAL '1 day')`;
 
-const PERIOD_RANGES = {
+const PRESET_RANGES = {
   "this-month": { start: MONTH_START, end: NEXT_MONTH },
   "last-month": {
     start: `(${MONTH_START} - INTERVAL '1 month')`,
     end: MONTH_START,
   },
-  "last-3": { start: `(${MONTH_START} - INTERVAL '2 months')`, end: NEXT_MONTH },
-  "last-6": { start: `(${MONTH_START} - INTERVAL '5 months')`, end: NEXT_MONTH },
-  "this-year": { start: `date_trunc('year', CURRENT_DATE)`, end: NEXT_MONTH },
+  "last-3": { start: `(${MONTH_START} - INTERVAL '2 months')`, end: TOMORROW },
+  "last-6": { start: `(${MONTH_START} - INTERVAL '5 months')`, end: TOMORROW },
+  "last-12": {
+    start: `(${MONTH_START} - INTERVAL '11 months')`,
+    end: TOMORROW,
+  },
 };
 
-// doar cheile proprii (ex: "constructor" nu e un period valid)
-const getPeriodRange = (period) =>
-  Object.hasOwn(PERIOD_RANGES, period) ? PERIOD_RANGES[period] : undefined;
-
-// interval pt o luna aleasa (?month=YYYY-MM), data 'YYYY-MM-01' e parametrul $idx al query-ului
-// month are prioritate fata de period, ca summary-ul sa fie pe aceeasi luna ca /target
-// fara niciunul (sau period necunoscut) => luna curenta, ca la /target
-const monthRange = (idx) => ({
-  start: `$${idx}::date`,
-  end: `($${idx}::date + INTERVAL '1 month')`,
-});
-
-const resolveRange = (period, month, idx) =>
-  month
-    ? monthRange(idx)
-    : (getPeriodRange(period) ?? PERIOD_RANGES["this-month"]);
+// period vine deja validat din parsePeriod (utils/period.js): { preset } sau { from, to }
+// la custom, from/to ('YYYY-MM-DD', to exclusiv) devin parametrii $idx si $idx+1 ai query-ului
+const resolveRange = (period, idx) =>
+  period.preset
+    ? { ...PRESET_RANGES[period.preset], values: [] }
+    : {
+        start: `$${idx}::date`,
+        end: `$${idx + 1}::date`,
+        values: [period.from, period.to],
+      };
 
 // conditia WHERE pt un interval
 const rangeCondition = (range, column = "date") =>
   `${column} >= ${range.start} AND ${column} < ${range.end}`;
 
+// lunile atinse de interval (si cele partiale, ex. la un range pe zile)
+const monthsSeries = (range) =>
+  `generate_series(
+     date_trunc('month', ${range.start}),
+     date_trunc('month', ${range.end} - INTERVAL '1 day'),
+     INTERVAL '1 month'
+   )`;
+
 // sumele pe tip, pt cardurile de overview (income/expenses/savings/net)
-// month (YYYY-MM-01) sau period; fara niciunul => luna curenta
-const fetchBudgetSummary = async (userId, period, month) => {
-  const range = resolveRange(period, month, 2);
+const fetchBudgetSummary = async (userId, period) => {
+  const range = resolveRange(period, 2);
   const response = await pool.query(
     `SELECT type, COALESCE(SUM(amount), 0) AS total
      FROM budget_items
      WHERE user_id = $1 AND ${rangeCondition(range)}
      GROUP BY type`,
-    month ? [userId, month] : [userId],
+    [userId, ...range.values],
   );
   return response.rows;
 };
 
-// suma target-urilor din month/period, pt progresul din summary
+// suma target-urilor din period, pt progresul din summary
 // fiecare luna din interval foloseste target-ul ei sau, daca nu are, ultimul dinainte (carry-over)
-const fetchTargetSummary = async (userId, period, month) => {
-  const range = resolveRange(period, month, 2);
+// la un range pe zile, lunile partiale intra cu target-ul intreg
+const fetchTargetSummary = async (userId, period) => {
+  const range = resolveRange(period, 2);
 
   const response = await pool.query(
     `WITH months AS (
-       SELECT generate_series(
-         ${range.start},
-         ${range.end} - INTERVAL '1 month',
-         INTERVAL '1 month'
-       )::date AS month
+       SELECT ${monthsSeries(range)}::date AS month
      )
      SELECT SUM(t.income) AS income, SUM(t.expense) AS expense,
             SUM(t.savings) AS savings
@@ -134,14 +138,14 @@ const fetchTargetSummary = async (userId, period, month) => {
        ORDER BY month DESC
        LIMIT 1
      ) t ON TRUE`,
-    month ? [userId, month] : [userId],
+    [userId, ...range.values],
   );
   return response.rows[0];
 };
 
-// top N cele mai mari cheltuieli (optional doar din month/period)
-const fetchTopExpenses = async (userId, limit = 5, period, month) => {
-  const range = resolveRange(period, month, 3);
+// top N cele mai mari cheltuieli din period
+const fetchTopExpenses = async (userId, limit, period) => {
+  const range = resolveRange(period, 3);
   const response = await pool.query(
     `SELECT b.item_id, b.category_id, c.name AS category,
             b.amount, b.date, b.notes, b.created_at
@@ -151,25 +155,21 @@ const fetchTopExpenses = async (userId, limit = 5, period, month) => {
        AND ${rangeCondition(range, "b.date")}
      ORDER BY b.amount DESC
      LIMIT $2`,
-    month ? [userId, limit, month] : [userId, limit],
+    [userId, limit, ...range.values],
   );
   return response.rows;
 };
 
 // income vs expense pe luni, cate un punct pt fiecare luna din period (pt grafic de trend)
-// fara period (sau valoare necunoscuta) => ultimele 6 luni
 // lunile sunt generate direct in SQL (generate_series), ca sa nu depinda
 // de timezone-ul serverului Node vs. cel al bazei de date
+// la un range pe zile, lunile de la capete contin doar zilele din interval
 const fetchBudgetTrend = async (userId, period) => {
-  const range = getPeriodRange(period) ?? PERIOD_RANGES["last-6"];
+  const range = resolveRange(period, 2);
 
   const response = await pool.query(
     `WITH months AS (
-       SELECT generate_series(
-         ${range.start},
-         ${range.end} - INTERVAL '1 month',
-         INTERVAL '1 month'
-       ) AS month
+       SELECT ${monthsSeries(range)} AS month
      )
      SELECT to_char(m.month, 'YYYY-MM') AS month,
             COALESCE(SUM(b.amount) FILTER (WHERE b.type = 'income'), 0) AS income,
@@ -177,9 +177,10 @@ const fetchBudgetTrend = async (userId, period) => {
      FROM months m
      LEFT JOIN budget_items b
        ON date_trunc('month', b.date) = m.month AND b.user_id = $1
+          AND ${rangeCondition(range, "b.date")}
      GROUP BY m.month
      ORDER BY m.month ASC`,
-    [userId],
+    [userId, ...range.values],
   );
   return response.rows;
 };

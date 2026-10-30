@@ -7,7 +7,7 @@ import {
   fetchTopExpenses,
   fetchBudgetTrend,
 } from "../services/budget.services.js";
-import { parseMonth } from "../utils/month.js";
+import { parsePeriod, PERIOD_PRESETS } from "../utils/period.js";
 import validators from "../validators/inputValidators.js";
 
 // GET /budget  (?type=expense&limit=5)
@@ -48,26 +48,26 @@ const getBudgetItem = async (req, res, next) => {
   }
 };
 
-// ?month=YYYY-MM (aceeasi luna ca la /target); false => format invalid
-const invalidMonth = (res) =>
+// ?period= invalid (vezi utils/period.js)
+const invalidPeriod = (res) =>
   res.status(400).json({
     success: false,
-    message: "Invalid month. Expected format: YYYY-MM",
+    message: `Invalid period. Allowed: ${PERIOD_PRESETS.join(", ")}, YYYY-MM:YYYY-MM or YYYY-MM-DD:YYYY-MM-DD`,
   });
 
 // cat % din target reprezinta suma reala; null daca nu exista target (sau e <= 0)
 const percentOf = (actual, target) =>
   target > 0 ? Math.round((actual / target) * 10000) / 100 : null;
 
-// GET /budget/summary  (?month=2026-10 sau ?period=last-month; month are prioritate, implicit luna curenta)
+// GET /budget/summary  (?period=last-3 sau ?period=2026-01:2026-03; implicit luna curenta)
 const getBudgetSummary = async (req, res, next) => {
   try {
-    const month = parseMonth(req.query.month);
-    if (month === false) return invalidMonth(res);
+    const period = parsePeriod(req.query.period);
+    if (period === false) return invalidPeriod(res);
 
     const [rows, targetRow] = await Promise.all([
-      fetchBudgetSummary(req.user.user_id, req.query.period, month),
-      fetchTargetSummary(req.user.user_id, req.query.period, month),
+      fetchBudgetSummary(req.user.user_id, period),
+      fetchTargetSummary(req.user.user_id, period),
     ]);
 
     // normalizezi in ceva usor de folosit pe frontend
@@ -75,7 +75,8 @@ const getBudgetSummary = async (req, res, next) => {
     for (const row of rows) {
       summary[row.type] = Number(row.total);
     }
-    summary.net = summary.income - summary.expense - summary.savings;
+    // net = venituri - cheltuieli (economiile nu se scad)
+    summary.net = summary.income - summary.expense;
 
     // target-urile din period (null daca nu e setat) si progresul fata de ele
     const target = {};
@@ -83,9 +84,9 @@ const getBudgetSummary = async (req, res, next) => {
       target[type] = targetRow[type] == null ? null : Number(targetRow[type]);
     }
     target.net =
-      target.income == null && target.expense == null && target.savings == null
+      target.income == null && target.expense == null
         ? null
-        : (target.income ?? 0) - (target.expense ?? 0) - (target.savings ?? 0);
+        : (target.income ?? 0) - (target.expense ?? 0);
 
     summary.target = target;
     summary.progress = {
@@ -135,18 +136,13 @@ const getSpending = async (req, res, next) => {
   }
 };
 
-// GET /budget/spending/top  (?month=2026-10 sau ?period=last-month; month are prioritate, implicit luna curenta)
+// GET /budget/spending/top  (?period=last-3 sau ?period=2026-01:2026-03; implicit luna curenta)
 const getTopSpending = async (req, res, next) => {
   try {
-    const month = parseMonth(req.query.month);
-    if (month === false) return invalidMonth(res);
+    const period = parsePeriod(req.query.period);
+    if (period === false) return invalidPeriod(res);
 
-    const topExpenses = await fetchTopExpenses(
-      req.user.user_id,
-      5,
-      req.query.period,
-      month,
-    );
+    const topExpenses = await fetchTopExpenses(req.user.user_id, 5, period);
     res.status(200).json({ success: true, topExpenses });
   } catch (err) {
     console.log(err.message || err);
@@ -165,10 +161,13 @@ const getSavings = async (req, res, next) => {
   }
 };
 
-// GET /budget/budget-trend  (?period=last-6, implicit ultimele 6 luni)
+// GET /budget/budget-trend  (?period=last-12 sau ?period=2026-01:2026-06; implicit ultimele 6 luni)
 const getBudgetTrend = async (req, res, next) => {
   try {
-    const rows = await fetchBudgetTrend(req.user.user_id, req.query.period);
+    const period = parsePeriod(req.query.period, "last-6");
+    if (period === false) return invalidPeriod(res);
+
+    const rows = await fetchBudgetTrend(req.user.user_id, period);
 
     const trend = rows.map((row) => ({
       month: row.month,

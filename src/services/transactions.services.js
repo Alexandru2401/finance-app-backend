@@ -1,6 +1,7 @@
 import pool from "../db/db.js";
 
-const MAX_PER_PAGE = 100;
+// ?limit= poate cere mai putine, dar niciodata mai mult de 15 pe pagina
+const MAX_PER_PAGE = 15;
 const TYPES = ["income", "expense", "savings"];
 
 // intreg pozitiv valid, altfel fallback (evita NaN/negative ajunse in LIMIT/OFFSET)
@@ -24,7 +25,7 @@ const fetchTransactions = async (userId, filters = {}) => {
   } = filters;
 
   const page = toSafeInt(filters.page, 1);
-  const perPage = toSafeInt(filters.perPage, 10, MAX_PER_PAGE);
+  const perPage = toSafeInt(filters.perPage, MAX_PER_PAGE, MAX_PER_PAGE);
 
   const conditions = ["b.user_id = $1"];
   const values = [userId];
@@ -88,9 +89,12 @@ const fetchTransactions = async (userId, filters = {}) => {
   const listValues = [...values, perPage, offset];
 
   // total (număr de rânduri filtrate) + net total, calculate pe TOT setul filtrat, nu doar pagina
+  // net = venituri - cheltuieli (economiile nu se scad), ca la /budget/summary
   const totalsQuery = `
     SELECT COUNT(*) AS count,
-           COALESCE(SUM(CASE WHEN b.type = 'income' THEN b.amount ELSE -b.amount END), 0) AS net
+           COALESCE(SUM(CASE WHEN b.type = 'income' THEN b.amount
+                             WHEN b.type = 'expense' THEN -b.amount
+                             ELSE 0 END), 0) AS net
     FROM budget_items b
     LEFT JOIN categories c ON c.category_id = b.category_id
     WHERE ${where}`;
@@ -100,10 +104,15 @@ const fetchTransactions = async (userId, filters = {}) => {
     pool.query(totalsQuery, values),
   ]);
 
+  const total = Number(totals.rows[0].count);
+
   return {
     rows: list.rows.map((r) => ({ ...r, amount: Number(r.amount) })),
-    total: Number(totals.rows[0].count),
+    total,
     net: Number(totals.rows[0].net),
+    page,
+    perPage,
+    totalPages: Math.ceil(total / perPage),
   };
 };
 

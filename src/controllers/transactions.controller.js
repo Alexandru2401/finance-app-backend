@@ -8,7 +8,8 @@ import {
   deleteTransactionById,
 } from "../services/transactions.services.js";
 
-// GET /transactions  (?type=expense&category_id=..&year=..&month=..&day=..&minAmount=..&maxAmount=..&search=..&sort=newest&page=1&limit=10)
+// GET /transactions  (?type=expense&category_id=..&year=..&month=..&day=..&minAmount=..&maxAmount=..&search=..&sort=newest&page=1&limit=15)
+// limit implicit si maxim 15
 const getTransactions = async (req, res, next) => {
   try {
     const {
@@ -25,7 +26,14 @@ const getTransactions = async (req, res, next) => {
       limit,
     } = req.query;
 
-    const { rows, total, net } = await fetchTransactions(req.user.user_id, {
+    const {
+      rows,
+      total,
+      net,
+      page: currentPage,
+      perPage,
+      totalPages,
+    } = await fetchTransactions(req.user.user_id, {
       search,
       type,
       categoryId: category_id,
@@ -39,7 +47,15 @@ const getTransactions = async (req, res, next) => {
       perPage: limit,
     });
 
-    res.status(200).json({ success: true, transactions: rows, total, net });
+    res.status(200).json({
+      success: true,
+      transactions: rows,
+      total,
+      net,
+      page: currentPage,
+      limit: perPage,
+      totalPages,
+    });
   } catch (err) {
     console.log(err.message || err);
     next(err);
