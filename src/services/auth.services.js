@@ -11,7 +11,7 @@ const insertUser = async (email, password) => {
 
 const fetchUserByEmail = async (email) => {
   const response = await pool.query(
-    "SELECT user_id, email, plan_type, password FROM users WHERE email=$1",
+    "SELECT user_id, email, plan_type, is_active, password FROM users WHERE email=$1",
     [email],
   );
 
@@ -32,6 +32,15 @@ const insertRefreshToken = async (userId, refreshToken, expires_at) => {
     [userId, refreshToken, expires_at],
   );
 
+  return response.rows[0];
+};
+
+// refresh token-ul doar daca exista in db si nu a expirat (logout il sterge)
+const fetchRefreshToken = async (token) => {
+  const response = await pool.query(
+    "SELECT user_id, token FROM refresh_tokens WHERE token = $1 AND expires_at > NOW()",
+    [token],
+  );
   return response.rows[0];
 };
 
@@ -68,6 +77,7 @@ export {
   fetchUserByEmail,
   fetchUserByUsername,
   insertRefreshToken,
+  fetchRefreshToken,
   deleteRefreshToken,
   fetchUserById,
   fetchUserInfoById,

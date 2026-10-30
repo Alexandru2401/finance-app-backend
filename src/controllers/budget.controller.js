@@ -8,6 +8,7 @@ import {
   fetchBudgetTrend,
 } from "../services/budget.services.js";
 import { parseMonth } from "../utils/month.js";
+import validators from "../validators/inputValidators.js";
 
 // GET /budget  (?type=expense&limit=5)
 const getBudgetItems = async (req, res, next) => {
@@ -29,7 +30,10 @@ const getBudgetItems = async (req, res, next) => {
 // GET /budget/:id
 const getBudgetItem = async (req, res, next) => {
   try {
-    const item = await fetchBudgetItemById(req.params.id, req.user.user_id);
+    // id invalid => 404, altfel Postgres arunca eroare de uuid (500)
+    const item = validators.isValidUUID(req.params.id)
+      ? await fetchBudgetItemById(req.params.id, req.user.user_id)
+      : undefined;
 
     if (!item) {
       return res

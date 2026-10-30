@@ -1,3 +1,4 @@
+import validators from "../validators/inputValidators.js";
 import {
   fetchTransactions,
   fetchCategoryForUser,
@@ -136,6 +137,13 @@ const addTransaction = async (req, res, next) => {
 // PATCH /transactions/:id  body (partial): { type?, amount?, date?: "YYYY-MM-DD", category_id?, notes?: string | null }
 const updateTransaction = async (req, res, next) => {
   try {
+    // id invalid => 404, altfel Postgres arunca eroare de uuid (500)
+    if (!validators.isValidUUID(req.params.id)) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Transaction not found" });
+    }
+
     const { type, amount, date, category_id, notes } = req.body ?? {};
 
     if (
@@ -251,6 +259,12 @@ const updateTransaction = async (req, res, next) => {
 // DELETE /transactions/:id
 const deleteTransaction = async (req, res, next) => {
   try {
+    if (!validators.isValidUUID(req.params.id)) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Transaction not found" });
+    }
+
     const deleted = await deleteTransactionById(
       req.params.id,
       req.user.user_id,

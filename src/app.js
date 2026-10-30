@@ -12,7 +12,9 @@ import errorMiddleware from "./middleware/error.middleware.js";
 
 const app = express();
 
-app.use(cors({ origin: CLIENT_URL, credentials: true }));
+const allowedOrigins = CLIENT_URL?.split(",").map((url) => url.trim()) ?? [];
+
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
 app.use(morgan("dev"));

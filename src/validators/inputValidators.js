@@ -25,6 +25,25 @@ const validators = {
   },
 
   /**
+   * parola nu se face trim; max 72 pt ca bcrypt ignora ce e dupa 72 de bytes
+   * @param {string} password
+   * @returns {boolean}
+   */
+  isValidPassword: (password) =>
+    typeof password === "string" &&
+    password.length >= 8 &&
+    password.length <= 72,
+
+  /**
+   * @param {string} value
+   * @returns {boolean}
+   */
+  isValidUUID: (value) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      value,
+    ),
+
+  /**
    * @param {string} username
    * @returns {boolean}
    */

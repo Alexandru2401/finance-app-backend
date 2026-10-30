@@ -11,6 +11,11 @@ const createRefreshToken = (payload) => {
   });
 };
 
+// arunca eroare daca token-ul e invalid sau expirat
+const verifyRefreshToken = (token) => {
+  return jwt.verify(token, JWT_REFRESH_TOKEN);
+};
+
 const validateToken = (req, res, next) => {
   const token = req.cookies.accessToken;
 
@@ -27,4 +32,9 @@ const validateToken = (req, res, next) => {
     return res.status(403).json({ message: "Invalid or expired token" });
   }
 };
-export { createAccesToken, createRefreshToken, validateToken };
+export {
+  createAccesToken,
+  createRefreshToken,
+  verifyRefreshToken,
+  validateToken,
+};
