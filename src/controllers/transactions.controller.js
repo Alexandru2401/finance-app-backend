@@ -291,9 +291,7 @@ const deleteTransaction = async (req, res, next) => {
         .json({ success: false, message: "Transaction not found" });
     }
 
-    res
-      .status(200)
-      .json({ success: true, message: "Transaction deleted successfully" });
+    res.status(204).end();
   } catch (err) {
     console.log(err.message || err);
     next(err);

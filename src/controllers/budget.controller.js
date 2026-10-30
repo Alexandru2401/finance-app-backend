@@ -1,6 +1,4 @@
 import {
-  fetchBudgetItems,
-  fetchBudgetItemById,
   fetchCategories,
   fetchBudgetSummary,
   fetchTargetSummary,
@@ -8,45 +6,6 @@ import {
   fetchBudgetTrend,
 } from "../services/budget.services.js";
 import { parsePeriod, PERIOD_PRESETS } from "../utils/period.js";
-import validators from "../validators/inputValidators.js";
-
-// GET /budget  (?type=expense&limit=5)
-const getBudgetItems = async (req, res, next) => {
-  try {
-    const { type, limit } = req.query;
-
-    const items = await fetchBudgetItems(req.user.user_id, {
-      type,
-      limit: limit ? Number(limit) : undefined,
-    });
-
-    res.status(200).json({ success: true, items });
-  } catch (err) {
-    console.log(err.message || err);
-    next(err);
-  }
-};
-
-// GET /budget/:id
-const getBudgetItem = async (req, res, next) => {
-  try {
-    // id invalid => 404, altfel Postgres arunca eroare de uuid (500)
-    const item = validators.isValidUUID(req.params.id)
-      ? await fetchBudgetItemById(req.params.id, req.user.user_id)
-      : undefined;
-
-    if (!item) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Item not found" });
-    }
-
-    res.status(200).json({ success: true, item });
-  } catch (err) {
-    console.log(err.message || err);
-    next(err);
-  }
-};
 
 // ?period= invalid (vezi utils/period.js)
 const invalidPeriod = (res) =>
@@ -114,28 +73,6 @@ const getCategories = async (req, res, next) => {
   }
 };
 
-// GET /budget/income
-const getIncome = async (req, res, next) => {
-  try {
-    const items = await fetchBudgetItems(req.user.user_id, { type: "income" });
-    res.status(200).json({ success: true, items });
-  } catch (err) {
-    console.log(err.message || err);
-    next(err);
-  }
-};
-
-// GET /budget/spending
-const getSpending = async (req, res, next) => {
-  try {
-    const items = await fetchBudgetItems(req.user.user_id, { type: "expense" });
-    res.status(200).json({ success: true, items });
-  } catch (err) {
-    console.log(err.message || err);
-    next(err);
-  }
-};
-
 // GET /budget/spending/top  (?period=last-3 sau ?period=2026-01:2026-03; implicit luna curenta)
 const getTopSpending = async (req, res, next) => {
   try {
@@ -144,17 +81,6 @@ const getTopSpending = async (req, res, next) => {
 
     const topExpenses = await fetchTopExpenses(req.user.user_id, 5, period);
     res.status(200).json({ success: true, topExpenses });
-  } catch (err) {
-    console.log(err.message || err);
-    next(err);
-  }
-};
-
-// GET /budget/savings
-const getSavings = async (req, res, next) => {
-  try {
-    const items = await fetchBudgetItems(req.user.user_id, { type: "savings" });
-    res.status(200).json({ success: true, items });
   } catch (err) {
     console.log(err.message || err);
     next(err);
@@ -182,14 +108,4 @@ const getBudgetTrend = async (req, res, next) => {
   }
 };
 
-export {
-  getBudgetItems,
-  getBudgetItem,
-  getBudgetSummary,
-  getCategories,
-  getIncome,
-  getSpending,
-  getTopSpending,
-  getSavings,
-  getBudgetTrend,
-};
+export { getBudgetSummary, getCategories, getTopSpending, getBudgetTrend };
