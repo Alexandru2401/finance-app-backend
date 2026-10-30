@@ -306,8 +306,6 @@ const refresh = async (req, res, next) => {
       maxAge: 15 * 60 * 1000,
     });
 
-    console.log("New acces token:", accessToken);
-
     res.status(200).json({ success: true, message: "Token refreshed" });
   } catch (err) {
     console.log(err.message || err);
@@ -317,7 +315,6 @@ const refresh = async (req, res, next) => {
 
 const checkMe = async (req, res, next) => {
   try {
-    console.log("req.user", req.user);
     const user = await fetchUserById(req.user.user_id);
     if (!user) {
       return res
