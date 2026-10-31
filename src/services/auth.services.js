@@ -114,7 +114,49 @@ const updateUserProfile = async (userId, username, newCurrency, language) => {
   }
 };
 
+const fetchUserPasswordById = async (id) => {
+  const response = await pool.query(
+    "SELECT user_id, password FROM users WHERE user_id = $1",
+    [id],
+  );
+  return response.rows[0];
+};
+
+// la schimbarea parolei stergem refresh token-urile celorlalte sesiuni;
+// keepToken (refresh token-ul cererii curente) ramane valid
+const updatePassword = async (userId, hashedPassword, keepToken) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    await client.query("UPDATE users SET password = $1 WHERE user_id = $2", [
+      hashedPassword,
+      userId,
+    ]);
+
+    if (keepToken) {
+      await client.query(
+        "DELETE FROM refresh_tokens WHERE user_id = $1 AND token <> $2",
+        [userId, keepToken],
+      );
+    } else {
+      await client.query("DELETE FROM refresh_tokens WHERE user_id = $1", [
+        userId,
+      ]);
+    }
+
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
 export {
+  fetchUserPasswordById,
+  updatePassword,
   insertUser,
   fetchUserByEmail,
   fetchUserByUsername,

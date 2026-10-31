@@ -9,6 +9,8 @@ import {
   fetchRefreshToken,
   deleteRefreshToken,
   updateUserProfile,
+  fetchUserPasswordById,
+  updatePassword,
 } from "../services/auth.services.js";
 import { hashPassword, comparePassword } from "../utils/hashPassword.js";
 import {
@@ -350,6 +352,51 @@ const getUserInfo = async (req, res, next) => {
   }
 };
 
+const updateUserPassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      const error = new Error("Current and new password are required");
+      error.status = 400;
+      throw error;
+    }
+
+    if (!validators.isValidPassword(newPassword)) {
+      const error = new Error("Password must be between 8 and 72 characters");
+      error.status = 400;
+      throw error;
+    }
+
+    const user = await fetchUserPasswordById(req.user.user_id);
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    // 400, nu 401: la 401/403 frontend-ul incearca un refresh de token
+    if (!(await comparePassword(currentPassword, user.password))) {
+      const error = new Error("Current password is incorrect");
+      error.status = 400;
+      throw error;
+    }
+
+    const hashedPassword = await hashPassword(newPassword);
+    // sesiunea curenta ramane logata, celelalte sunt delogate
+    await updatePassword(
+      req.user.user_id,
+      hashedPassword,
+      req.cookies.refreshToken,
+    );
+
+    res.status(204).end();
+  } catch (err) {
+    console.log(err.message || err);
+    next(err);
+  }
+};
+
 export {
   register,
   login,
@@ -358,6 +405,7 @@ export {
   checkMe,
   updateUserInfo,
   getUserInfo,
+  updateUserPassword,
 };
 
 //  id                  UUID DEFAULT gen_random_uuid() PRIMARY KEY,
