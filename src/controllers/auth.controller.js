@@ -196,7 +196,7 @@ const login = async (req, res, next) => {
 
 const updateUserInfo = async (req, res, next) => {
   try {
-    const { username, currency } = req.body;
+    const { username, currency, language } = req.body;
 
     if (!username || !currency) {
       const error = new Error("Username and currency are required");
@@ -215,10 +215,19 @@ const updateUserInfo = async (req, res, next) => {
       throw error;
     }
 
+    // optional; lipsa = ramane limba curenta. Validat contra enum-ului language_code
+    const allowedLanguages = ["ro", "en"];
+    if (language !== undefined && !allowedLanguages.includes(language)) {
+      const error = new Error("Invalid language");
+      error.status = 400;
+      throw error;
+    }
+
     const updatedUser = await updateUserProfile(
       req.user.user_id,
       sanitizedUsername,
       currency,
+      language,
     );
 
     res.status(200).json({ success: true, user: updatedUser });

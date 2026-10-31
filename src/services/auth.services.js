@@ -66,7 +66,8 @@ const fetchUserInfoById = async (id) => {
 };
 
 // la schimbarea monedei convertim si toate sumele userului, intr-o singura tranzactie
-const updateUserProfile = async (userId, username, newCurrency) => {
+// language e optional: null/undefined pastreaza limba curenta
+const updateUserProfile = async (userId, username, newCurrency, language) => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -98,8 +99,9 @@ const updateUserProfile = async (userId, username, newCurrency) => {
     }
 
     const response = await client.query(
-      "UPDATE users SET username = $1, currency = $2 WHERE user_id = $3 RETURNING user_id, username, currency",
-      [username, newCurrency, userId],
+      `UPDATE users SET username = $1, currency = $2, language = COALESCE($3, language)
+       WHERE user_id = $4 RETURNING user_id, username, currency, language`,
+      [username, newCurrency, language ?? null, userId],
     );
 
     await client.query("COMMIT");
