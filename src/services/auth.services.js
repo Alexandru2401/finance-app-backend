@@ -1,4 +1,5 @@
 import pool from "../db/db.js";
+import { getRatesToRon, getRate } from "./currency.services.js";
 
 const insertUser = async (email, password) => {
   const response = await pool.query(
@@ -64,12 +65,51 @@ const fetchUserInfoById = async (id) => {
   return response.rows[0];
 };
 
-const updateUserProfile = async (userId, username, currency) => {
-  const response = await pool.query(
-    "UPDATE users SET username = $1, currency = $2 WHERE user_id = $3 RETURNING user_id, username, currency",
-    [username, currency, userId],
-  );
-  return response.rows[0];
+// la schimbarea monedei convertim si toate sumele userului, intr-o singura tranzactie
+const updateUserProfile = async (userId, username, newCurrency) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // FOR UPDATE - doua cereri simultane nu pot converti sumele de doua ori
+    const { rows } = await client.query(
+      "SELECT currency FROM users WHERE user_id = $1 FOR UPDATE",
+      [userId],
+    );
+    const oldCurrency = rows[0]?.currency;
+
+    if (oldCurrency && oldCurrency !== newCurrency) {
+      // cache de 6h, deci de obicei nu face request in timpul tranzactiei
+      const rates = await getRatesToRon();
+      const rate = getRate(rates, oldCurrency, newCurrency);
+
+      await client.query(
+        "UPDATE budget_items SET amount = ROUND((amount * $1)::numeric, 2) WHERE user_id = $2",
+        [rate, userId],
+      );
+      await client.query(
+        `UPDATE budget_targets SET
+           income  = ROUND((income  * $1)::numeric, 2),
+           expense = ROUND((expense * $1)::numeric, 2),
+           savings = ROUND((savings * $1)::numeric, 2)
+         WHERE user_id = $2`,
+        [rate, userId],
+      );
+    }
+
+    const response = await client.query(
+      "UPDATE users SET username = $1, currency = $2 WHERE user_id = $3 RETURNING user_id, username, currency",
+      [username, newCurrency, userId],
+    );
+
+    await client.query("COMMIT");
+    return response.rows[0];
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 };
 
 export {
