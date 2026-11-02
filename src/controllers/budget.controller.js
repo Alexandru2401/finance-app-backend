@@ -1,5 +1,4 @@
 import {
-  fetchCategories,
   fetchBudgetSummary,
   fetchTargetSummary,
   fetchTopExpenses,
@@ -62,17 +61,6 @@ const getBudgetSummary = async (req, res, next) => {
   }
 };
 
-// GET /budget/categories  (?type=expense)
-const getCategories = async (req, res, next) => {
-  try {
-    const categories = await fetchCategories(req.user.user_id, req.query.type);
-    res.status(200).json({ success: true, categories });
-  } catch (err) {
-    console.log(err.message || err);
-    next(err);
-  }
-};
-
 // GET /budget/spending/top  (?period=last-3 sau ?period=2026-01:2026-03; implicit luna curenta)
 const getTopSpending = async (req, res, next) => {
   try {
@@ -108,4 +96,4 @@ const getBudgetTrend = async (req, res, next) => {
   }
 };
 
-export { getBudgetSummary, getCategories, getTopSpending, getBudgetTrend };
+export { getBudgetSummary, getTopSpending, getBudgetTrend };

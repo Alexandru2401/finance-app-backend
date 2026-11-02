@@ -1,22 +1,5 @@
 import pool from "../db/db.js";
 
-// categoriile userului (pt dropdown-ul din form)
-const fetchCategories = async (userId, type) => {
-  const values = [userId];
-  let query = `SELECT category_id, type, name, key FROM categories
-             WHERE (user_id = $1 OR user_id IS NULL)`;
-
-  if (type) {
-    query += ` AND type = $2`;
-    values.push(type);
-  }
-
-  query += ` ORDER BY name ASC`;
-
-  const response = await pool.query(query, values);
-  return response.rows;
-};
-
 // intervalele presetate din ?period= : [start, end) ca expresii SQL
 // calculate in SQL (CURRENT_DATE), ca sa nu depinda de timezone-ul serverului Node
 // this-month = toata luna curenta, last-month = toata luna trecuta (nu ultimele 30 de zile)
@@ -143,7 +126,6 @@ const fetchBudgetTrend = async (userId, period) => {
 };
 
 export {
-  fetchCategories,
   fetchBudgetSummary,
   fetchTargetSummary,
   fetchTopExpenses,
