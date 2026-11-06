@@ -116,11 +116,10 @@ const fetchTransactions = async (userId, filters = {}) => {
   };
 };
 
-// categoria trebuie sa fie default (user_id NULL) sau a userului
 const fetchCategoryForUser = async (categoryId, userId) => {
   const response = await pool.query(
     `SELECT category_id, type, name FROM categories
-     WHERE category_id = $1 AND (user_id = $2 OR user_id IS NULL)`,
+     WHERE category_id = $1 AND user_id = $2`,
     [categoryId, userId],
   );
   return response.rows[0];

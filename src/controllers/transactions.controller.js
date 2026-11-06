@@ -227,21 +227,24 @@ const updateTransaction = async (req, res, next) => {
 
     // valorile finale = cele trimise, peste cele existente
     const finalType = type ?? existing.type;
-    const category = await fetchCategoryForUser(
-      category_id ?? existing.category_id,
-      req.user.user_id,
-    );
-    if (!category) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Category not found" });
-    }
+    const finalCategoryId = category_id ?? existing.category_id;
 
-    if (category.type !== finalType) {
-      return res.status(400).json({
-        success: false,
-        message: `Category '${category.name}' belongs to type '${category.type}', not '${finalType}'`,
-      });
+    // tranzactia ramane fara categorie daca aceasta a fost stearsa (ON DELETE SET NULL)
+    let category = null;
+    if (finalCategoryId) {
+      category = await fetchCategoryForUser(finalCategoryId, req.user.user_id);
+      if (!category) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Category not found" });
+      }
+
+      if (category.type !== finalType) {
+        return res.status(400).json({
+          success: false,
+          message: `Category '${category.name}' belongs to type '${category.type}', not '${finalType}'`,
+        });
+      }
     }
 
     const transaction = await updateTransactionById(
@@ -251,7 +254,7 @@ const updateTransaction = async (req, res, next) => {
         type: finalType,
         amount: numericAmount ?? existing.amount,
         date: date ?? existing.date,
-        categoryId: category.category_id,
+        categoryId: finalCategoryId,
         notes: notes === undefined ? existing.notes : notes?.trim() || null,
       },
     );
@@ -264,7 +267,7 @@ const updateTransaction = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: "Transaction updated successfully",
-      transaction: { ...transaction, category_name: category.name },
+      transaction: { ...transaction, category_name: category?.name ?? null },
     });
   } catch (err) {
     console.log(err.message || err);
