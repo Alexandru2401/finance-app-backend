@@ -20,14 +20,17 @@ Autentificarea se face prin cookie-uri `httpOnly` (`accessToken` și `refreshTok
 
 ### POST /auth/register
 
-Creează un cont nou și setează cookie-urile de autentificare.
+Creează un cont nou, cu cele 12 categorii de pornire, și setează cookie-urile de autentificare.
 
 **Request body**
+
+`language` este opțional (`ro` sau `en`, implicit `ro`) și stabilește limba contului și a categoriilor.
 
 ```json
 {
   "email": "",
-  "password": ""
+  "password": "",
+  "language": "ro"
 }
 ```
 
@@ -71,8 +74,12 @@ Autentifică userul și setează cookie-urile de autentificare.
   "message": "Login successful",
   "user": {
     "user_id": "6bee845c-9902-4cd4-a8b8-1ca79e42d8ca",
+    "username": "test",
     "email": "test-nou@test.com",
-    "plan_type": "free"
+    "plan_type": "free",
+    "created_at": "2026-11-06T10:00:00.000Z",
+    "language": "ro",
+    "currency": "RON"
   }
 }
 ```
@@ -130,14 +137,15 @@ Fără body. Răspunsul e același și dacă nu există o sesiune activă (logou
 
 ### PATCH /auth/user-info
 
-🔒 Actualizează profilul userului logat.
+🔒 Actualizează profilul userului logat. Câmpurile sunt opționale, dar trebuie trimis cel puțin unul; cele lipsă își păstrează valoarea. Sumele se convertesc doar când `currency` diferă de moneda curentă.
 
 **Request body**
 
 ```json
 {
   "username": "test",
-  "currency": "RON"
+  "currency": "RON",
+  "language": "ro"
 }
 ```
 
@@ -149,7 +157,8 @@ Fără body. Răspunsul e același și dacă nu există o sesiune activă (logou
   "user": {
     "user_id": "6bee845c-9902-4cd4-a8b8-1ca79e42d8ca",
     "username": "test",
-    "currency": "RON"
+    "currency": "RON",
+    "language": "ro"
   }
 }
 ```

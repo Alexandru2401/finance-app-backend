@@ -8,7 +8,7 @@ FE-ul face un singur request, GET /budget/summary?month=YYYY-MM. BE-ul rulează 
 • Sumele reale vin din budget_items: suma pe income / expense / savings pentru intervalul cerut.
 • Target-ul vine din budget_targets: pentru fiecare lună din interval, cel mai recent rând cu month <= luna respectivă (carry-over). Un target setat într-o lună rămâne valabil până îl schimbi. La un interval de mai multe luni (last-3, this-year), target-urile lunilor se adună.
 • Procentul se calculează pe BE: real / target * 100, rotunjit la 2 zecimale.
-• net = income - expense - savings, la sumele reale, la target și la netBalance din /target.
+• net = income - expense (economiile nu se scad), la sumele reale, la target și la netBalance din /target.
 • Target-ul se setează din GET / POST /target (vezi mai jos), separat de summary.
 • Pe FE, un singur useQuery cu queryKey: ["summary", month]. Toate cardurile citesc din el și se actualizează când se schimbă luna.
 De făcut acasă
@@ -73,22 +73,22 @@ Exemplu de răspuns pentru GET /budget/summary?month=2026-09 (cu tipuri presupus
 {
   "success": true,
   "summary": {
-    "income": 4833, "expense": 2233, "savings": 2333, "net": 267,
-    "target":   { "income": 4000, "expense": 1000, "savings": 2000, "net": 1000 },
-    "progress": { "income": 120.83, "expense": 223.3, "savings": 116.65, "net": 26.7 }
+    "income": 4833, "expense": 2233, "savings": 2333, "net": 2600,
+    "target":   { "income": 4000, "expense": 1000, "savings": 2000, "net": 3000 },
+    "progress": { "income": 120.83, "expense": 223.3, "savings": 116.65, "net": 86.67 }
   }
 }
 Target-uri: GET /target, GET /target/all și POST /target
 • GET /target/all întoarce toate target-urile salvate ale userului, cele mai noi primele. Lunile moștenite nu apar, doar rândurile din budget_targets.
 • GET /target?month=YYYY-MM (implicit luna curentă) întoarce mereu un rând. Dacă luna nu are target propriu, îl moștenește pe ultimul dinainte, fără să-l salveze în DB: id e null, iar inheritedFrom e luna din care vine.
-• POST /target cu body { month?, income?, expense?, savings? } face upsert pe (user_id, month). Câmpurile trebuie să fie numere >= 0 și e obligatoriu cel puțin unul.
+• POST /target cu body { month?, income?, expense?, savings? } face upsert pe (user_id, month). Câmpurile trebuie să fie numere >= 0, cu maximum 2 zecimale și cel mult 9999999999.99, și e obligatoriu cel puțin unul.
 • La o lună nouă (201), câmpurile netrimise se copiază din ultimul target dinainte. La o lună existentă (200), câmpurile netrimise își păstrează valoarea.
 Exemplu de răspuns pentru GET /target?month=2026-11 (fără target propriu în noiembrie):
 {
   "success": true,
   "target": {
     "id": null, "month": "2026-11-01", "inheritedFrom": "2026-10-01",
-    "income": 2000, "expense": 500, "savings": 500, "netBalance": 1000
+    "income": 2000, "expense": 500, "savings": 500, "netBalance": 1500
   }
 }
 Cazuri limită
