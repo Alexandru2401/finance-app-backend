@@ -4,6 +4,8 @@ import {
   upsertTarget,
 } from "../services/target.services.js";
 import { parseMonth } from "../utils/month.js";
+import { targetNet } from "../utils/targetNet.js";
+import validators from "../validators/inputValidators.js";
 
 const FIELDS = ["income", "expense", "savings"];
 
@@ -22,7 +24,7 @@ const formatTarget = (row) => {
     income,
     expense,
     savings,
-    netBalance: (income ?? 0) - (expense ?? 0) - (savings ?? 0),
+    netBalance: targetNet(income, expense),
   };
 };
 
@@ -78,10 +80,10 @@ const saveTarget = async (req, res, next) => {
       if (value === undefined || value === null || value === "") continue;
 
       const numeric = Number(value);
-      if (!Number.isFinite(numeric) || numeric < 0) {
+      if (!validators.isValidAmount(numeric)) {
         return res.status(400).json({
           success: false,
-          message: `${field} must be a number >= 0`,
+          message: `${field} must be a number >= 0, with at most 2 decimals and at most 9999999999.99`,
         });
       }
       values[field] = numeric;

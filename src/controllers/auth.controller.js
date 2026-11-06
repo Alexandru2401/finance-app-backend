@@ -206,20 +206,40 @@ const login = async (req, res, next) => {
 
 const updateUserInfo = async (req, res, next) => {
   try {
-    const { username, currency, language } = req.body;
+    const { username, currency, language } = req.body ?? {};
 
-    if (!username || !currency) {
-      const error = new Error("Username and currency are required");
+    if (
+      username === undefined &&
+      currency === undefined &&
+      language === undefined
+    ) {
+      const error = new Error(
+        "Provide at least one field to update: username, currency, language",
+      );
       error.status = 400;
       throw error;
     }
 
-    const sanitizedUsername = username.trim();
-    invalidInputError("Username", sanitizedUsername, validators.isValidLength);
+    // optional; lipsa = ramane numele curent
+    let sanitizedUsername;
+    if (username !== undefined) {
+      if (typeof username !== "string") {
+        const error = new Error("Username is not valid");
+        error.status = 400;
+        throw error;
+      }
+      sanitizedUsername = username.trim();
+      invalidInputError(
+        "Username",
+        sanitizedUsername,
+        validators.isValidLength,
+      );
+    }
 
+    // optional; lipsa = ramane moneda curenta, deci sumele nu se convertesc
     // validezi currency contra enum-ului, altfel Postgres arunca 500 urat
     const allowedCurrencies = ["USD", "RON", "EUR"];
-    if (!allowedCurrencies.includes(currency)) {
+    if (currency !== undefined && !allowedCurrencies.includes(currency)) {
       const error = new Error("Invalid currency");
       error.status = 400;
       throw error;
@@ -232,12 +252,11 @@ const updateUserInfo = async (req, res, next) => {
       throw error;
     }
 
-    const updatedUser = await updateUserProfile(
-      req.user.user_id,
-      sanitizedUsername,
+    const updatedUser = await updateUserProfile(req.user.user_id, {
+      username: sanitizedUsername,
       currency,
       language,
-    );
+    });
 
     res.status(200).json({ success: true, user: updatedUser });
   } catch (err) {

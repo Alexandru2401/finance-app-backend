@@ -8,6 +8,9 @@ import {
   deleteTransactionById,
 } from "../services/transactions.services.js";
 
+const INVALID_AMOUNT =
+  "Amount must be greater than 0, with at most 2 decimals and at most 9999999999.99";
+
 // GET /transactions  (?type=expense&category_id=..&year=..&month=..&day=..&minAmount=..&maxAmount=..&search=..&sort=newest&page=1&limit=15)
 // limit implicit si maxim 15
 const getTransactions = async (req, res, next) => {
@@ -96,11 +99,8 @@ const addTransaction = async (req, res, next) => {
     }
 
     const numericAmount = Number(amount);
-    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Amount must be a positive number",
-      });
+    if (numericAmount <= 0 || !validators.isValidAmount(numericAmount)) {
+      return res.status(400).json({ success: false, message: INVALID_AMOUNT });
     }
 
     if (!isValidDate(date)) {
@@ -194,11 +194,10 @@ const updateTransaction = async (req, res, next) => {
     let numericAmount;
     if (amount !== undefined) {
       numericAmount = amount === "" || amount === null ? NaN : Number(amount);
-      if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-        return res.status(400).json({
-          success: false,
-          message: "Amount must be a positive number",
-        });
+      if (numericAmount <= 0 || !validators.isValidAmount(numericAmount)) {
+        return res
+          .status(400)
+          .json({ success: false, message: INVALID_AMOUNT });
       }
     }
 

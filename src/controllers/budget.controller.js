@@ -5,6 +5,7 @@ import {
   fetchBudgetTrend,
 } from "../services/budget.services.js";
 import { parsePeriod, PERIOD_PRESETS } from "../utils/period.js";
+import { targetNet } from "../utils/targetNet.js";
 
 // ?period= invalid (vezi utils/period.js)
 const invalidPeriod = (res) =>
@@ -41,10 +42,7 @@ const getBudgetSummary = async (req, res, next) => {
     for (const type of ["income", "expense", "savings"]) {
       target[type] = targetRow[type] == null ? null : Number(targetRow[type]);
     }
-    target.net =
-      target.income == null && target.expense == null
-        ? null
-        : (target.income ?? 0) - (target.expense ?? 0);
+    target.net = targetNet(target.income, target.expense);
 
     summary.target = target;
     summary.progress = {

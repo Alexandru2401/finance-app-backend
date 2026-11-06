@@ -1,3 +1,6 @@
+// cea mai mare valoare din coloanele numeric(12,2)
+const MAX_AMOUNT = 9999999999.99;
+
 const validators = {
   /**
    * @param {string} value
@@ -42,6 +45,17 @@ const validators = {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
       value,
     ),
+
+  /**
+   * suma care incape in numeric(12,2) fara sa fie rotunjita; poate fi 0
+   * @param {number} amount
+   * @returns {boolean}
+   */
+  isValidAmount: (amount) =>
+    Number.isFinite(amount) &&
+    amount >= 0 &&
+    amount <= MAX_AMOUNT &&
+    Math.round(amount * 100) / 100 === amount,
 
   /**
    * @param {string} username

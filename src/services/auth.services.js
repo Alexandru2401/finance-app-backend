@@ -8,7 +8,7 @@ const insertUser = async (email, password, language) => {
     await client.query("BEGIN");
 
     const response = await client.query(
-      "INSERT INTO users (email, password, language) VALUES ($1, $2, $3) RETURNING user_id, username, email, plan_type, is_active, created_at",
+      "INSERT INTO users (email, password, language) VALUES ($1, $2, $3) RETURNING user_id, username, email, plan_type, is_active, created_at, language, currency",
       [email, password, language],
     );
     const user = response.rows[0];
@@ -27,7 +27,7 @@ const insertUser = async (email, password, language) => {
 
 const fetchUserByEmail = async (email) => {
   const response = await pool.query(
-    "SELECT user_id, email, plan_type, is_active, password FROM users WHERE email=$1",
+    "SELECT user_id, username, email, plan_type, is_active, created_at, language, currency, password FROM users WHERE email=$1",
     [email],
   );
 
@@ -81,8 +81,11 @@ const fetchUserInfoById = async (id) => {
 };
 
 // la schimbarea monedei convertim si toate sumele userului, intr-o singura tranzactie
-// language e optional: null/undefined pastreaza limba curenta
-const updateUserProfile = async (userId, username, newCurrency, language) => {
+// campurile sunt optionale: null/undefined pastreaza valoarea curenta
+const updateUserProfile = async (
+  userId,
+  { username, currency: newCurrency, language },
+) => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -94,7 +97,7 @@ const updateUserProfile = async (userId, username, newCurrency, language) => {
     );
     const oldCurrency = rows[0]?.currency;
 
-    if (oldCurrency && oldCurrency !== newCurrency) {
+    if (newCurrency && oldCurrency && oldCurrency !== newCurrency) {
       // cache de 6h, deci de obicei nu face request in timpul tranzactiei
       const rates = await getRatesToRon();
       const rate = getRate(rates, oldCurrency, newCurrency);
@@ -114,9 +117,11 @@ const updateUserProfile = async (userId, username, newCurrency, language) => {
     }
 
     const response = await client.query(
-      `UPDATE users SET username = $1, currency = $2, language = COALESCE($3, language)
+      `UPDATE users SET username = COALESCE($1, username),
+                         currency = COALESCE($2, currency),
+                         language = COALESCE($3, language)
        WHERE user_id = $4 RETURNING user_id, username, currency, language`,
-      [username, newCurrency, language ?? null, userId],
+      [username ?? null, newCurrency ?? null, language ?? null, userId],
     );
 
     await client.query("COMMIT");
