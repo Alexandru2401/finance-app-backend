@@ -1,13 +1,28 @@
 import pool from "../db/db.js";
 import { getRatesToRon, getRate } from "./currency.services.js";
+import { insertStarterCategories } from "./categories.services.js";
 
-const insertUser = async (email, password) => {
-  const response = await pool.query(
-    "INSERT INTO users (email, password) VALUES ($1, $2) RETURNING user_id, username, email, plan_type, is_active, created_at",
-    [email, password],
-  );
+const insertUser = async (email, password, language) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
 
-  return response.rows[0];
+    const response = await client.query(
+      "INSERT INTO users (email, password, language) VALUES ($1, $2, $3) RETURNING user_id, username, email, plan_type, is_active, created_at",
+      [email, password, language],
+    );
+    const user = response.rows[0];
+
+    await insertStarterCategories(client, user.user_id, language);
+
+    await client.query("COMMIT");
+    return user;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 };
 
 const fetchUserByEmail = async (email) => {

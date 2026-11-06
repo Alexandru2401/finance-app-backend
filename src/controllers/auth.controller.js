@@ -19,9 +19,11 @@ import {
   verifyRefreshToken,
 } from "../utils/jwtHelperFn.js";
 
+const ALLOWED_LANGUAGES = ["ro", "en"];
+
 const register = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, language = "ro" } = req.body;
 
     if (!email || !password) {
       const error = new Error("All fields are required");
@@ -45,6 +47,12 @@ const register = async (req, res, next) => {
       throw error;
     }
 
+    if (!ALLOWED_LANGUAGES.includes(language)) {
+      const error = new Error("Invalid language");
+      error.status = 400;
+      throw error;
+    }
+
     const foundEmail = await fetchUserByEmail(sanitizedEmail);
 
     if (foundEmail) {
@@ -55,7 +63,7 @@ const register = async (req, res, next) => {
 
     const hashedPassword = await hashPassword(password);
 
-    const newUser = await insertUser(sanitizedEmail, hashedPassword);
+    const newUser = await insertUser(sanitizedEmail, hashedPassword, language);
 
     // De creat token
     const accessToken = createAccesToken({
@@ -218,8 +226,7 @@ const updateUserInfo = async (req, res, next) => {
     }
 
     // optional; lipsa = ramane limba curenta. Validat contra enum-ului language_code
-    const allowedLanguages = ["ro", "en"];
-    if (language !== undefined && !allowedLanguages.includes(language)) {
+    if (language !== undefined && !ALLOWED_LANGUAGES.includes(language)) {
       const error = new Error("Invalid language");
       error.status = 400;
       throw error;
