@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { validateToken } from "../utils/jwtHelperFn.js";
+import rateLimit from "../middleware/rateLimit.middleware.js";
 import {
   getBudgetSummary,
   getTopSpending,
@@ -8,7 +9,7 @@ import {
 
 const budgetRouter = Router();
 
-budgetRouter.use(validateToken); // protejeaza tot fisierul
+budgetRouter.use(validateToken, rateLimit(100, 15));
 
 // doar statistici; listele de tranzactii sunt in /transactions
 budgetRouter.get("/summary", getBudgetSummary);
