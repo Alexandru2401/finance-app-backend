@@ -3,6 +3,7 @@ import cookieParser from "cookie-parser";
 import { BASE_PATH, CLIENT_URL } from "./config/env.js";
 import cors from "cors";
 import morgan from "morgan";
+import helmet from "helmet";
 
 import authRouter from "./routes/auth.routes.js";
 import budgetRouter from "./routes/budget.routes.js";
@@ -15,6 +16,7 @@ const app = express();
 
 const allowedOrigins = CLIENT_URL?.split(",").map((url) => url.trim()) ?? [];
 
+app.use(helmet);
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
