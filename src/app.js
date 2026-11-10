@@ -7,11 +7,15 @@ import morgan from "morgan";
 import authRouter from "./routes/auth.routes.js";
 import budgetRouter from "./routes/budget.routes.js";
 import transactionsRouter from "./routes/transactions.routes.js";
+import targetRouter from "./routes/target.routes.js";
 import errorMiddleware from "./middleware/error.middleware.js";
+import categoriesRouter from "./routes/categories.routes.js";
 
 const app = express();
 
-app.use(cors({ origin: CLIENT_URL, credentials: true }));
+const allowedOrigins = CLIENT_URL?.split(",").map((url) => url.trim()) ?? [];
+
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
 app.use(morgan("dev"));
@@ -19,6 +23,8 @@ app.use(morgan("dev"));
 app.use(`${BASE_PATH}/auth`, authRouter);
 app.use(`${BASE_PATH}/budget`, budgetRouter);
 app.use(`${BASE_PATH}/transactions`, transactionsRouter);
+app.use(`${BASE_PATH}/target`, targetRouter);
+app.use(`${BASE_PATH}/categories`, categoriesRouter);
 
 app.use(errorMiddleware);
 
