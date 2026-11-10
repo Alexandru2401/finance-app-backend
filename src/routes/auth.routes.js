@@ -2,10 +2,12 @@ import { Router } from "express";
 import {
   login,
   logout,
+  refresh,
   register,
   checkMe,
   updateUserInfo,
   getUserInfo,
+  updateUserPassword,
 } from "../controllers/auth.controller.js";
 import { validateToken } from "../utils/jwtHelperFn.js";
 
@@ -15,12 +17,18 @@ authRouter.post("/register", register);
 
 authRouter.post("/login", login);
 
+// fara validateToken: se apeleaza tocmai cand access token-ul a expirat
+authRouter.post("/refresh", refresh);
+
 authRouter.patch("/user-info", validateToken, updateUserInfo);
 
-authRouter.post("/logout", validateToken, logout);
+// fara validateToken: logout-ul trebuie sa mearga si dupa ce access token-ul a expirat
+authRouter.post("/logout", logout);
 
 authRouter.get("/check-me", validateToken, checkMe);
 
 authRouter.get("/user-info", validateToken, getUserInfo);
+
+authRouter.patch("/update-password", validateToken, updateUserPassword);
 
 export default authRouter;

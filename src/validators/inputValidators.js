@@ -1,3 +1,6 @@
+// cea mai mare valoare din coloanele numeric(12,2)
+const MAX_AMOUNT = 9999999999.99;
+
 const validators = {
   /**
    * @param {string} value
@@ -23,6 +26,36 @@ const validators = {
   isValidLength: (name, min = 2, max = 150) => {
     return name.trim().length >= min && name.trim().length <= max;
   },
+
+  /**
+   * parola nu se face trim; max 72 pt ca bcrypt ignora ce e dupa 72 de bytes
+   * @param {string} password
+   * @returns {boolean}
+   */
+  isValidPassword: (password) =>
+    typeof password === "string" &&
+    password.length >= 8 &&
+    password.length <= 72,
+
+  /**
+   * @param {string} value
+   * @returns {boolean}
+   */
+  isValidUUID: (value) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      value,
+    ),
+
+  /**
+   * suma care incape in numeric(12,2) fara sa fie rotunjita; poate fi 0
+   * @param {number} amount
+   * @returns {boolean}
+   */
+  isValidAmount: (amount) =>
+    Number.isFinite(amount) &&
+    amount >= 0 &&
+    amount <= MAX_AMOUNT &&
+    Math.round(amount * 100) / 100 === amount,
 
   /**
    * @param {string} username
