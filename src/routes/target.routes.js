@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { validateToken } from "../utils/jwtHelperFn.js";
+import rateLimit from "../middleware/rateLimit.middleware.js";
 import {
   getTarget,
   getAllTargets,
@@ -8,7 +9,7 @@ import {
 
 const targetRouter = Router();
 
-targetRouter.use(validateToken); // protejeaza tot fisierul
+targetRouter.use(validateToken, rateLimit(100, 15));
 
 targetRouter.get("/", getTarget);
 targetRouter.get("/all", getAllTargets);

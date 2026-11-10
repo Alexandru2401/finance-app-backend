@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { validateToken } from "../utils/jwtHelperFn.js";
+import rateLimit from "../middleware/rateLimit.middleware.js";
 import {
   getAllCategories,
   createNewCategory,
@@ -9,7 +10,7 @@ import {
 
 const categoriesRouter = Router();
 
-categoriesRouter.use(validateToken);
+categoriesRouter.use(validateToken, rateLimit(100, 15));
 
 categoriesRouter.get("/", getAllCategories);
 categoriesRouter.post("/", createNewCategory);

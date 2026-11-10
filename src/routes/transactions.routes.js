@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { validateToken } from "../utils/jwtHelperFn.js";
+import rateLimit from "../middleware/rateLimit.middleware.js";
 import {
   getTransactions,
   addTransaction,
@@ -9,7 +10,7 @@ import {
 
 const transactionsRouter = Router();
 
-transactionsRouter.use(validateToken); // protejeaza tot fisierul
+transactionsRouter.use(validateToken, rateLimit(100, 15));
 
 transactionsRouter.get("/", getTransactions);
 
