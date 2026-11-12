@@ -70,4 +70,26 @@ const upsertTarget = async (userId, month, { income, expense, savings }) => {
   return response.rows[0];
 };
 
-export { fetchTarget, fetchAllTargets, upsertTarget };
+// target-urile salvate + sumele reale ale fiecarei luni (pentru exportul CSV)
+// sumele sunt calculate ca la /budget/summary: tranzactiile din luna respectiva
+const fetchTargetHistory = async (userId) => {
+  const response = await pool.query(
+    `SELECT to_char(t.month, 'YYYY-MM') AS month,
+            t.income, t.expense, t.savings,
+            COALESCE(SUM(b.amount) FILTER (WHERE b.type = 'income'), 0)  AS actual_income,
+            COALESCE(SUM(b.amount) FILTER (WHERE b.type = 'expense'), 0) AS actual_expense,
+            COALESCE(SUM(b.amount) FILTER (WHERE b.type = 'savings'), 0) AS actual_savings
+     FROM budget_targets t
+     LEFT JOIN budget_items b
+       ON b.user_id = t.user_id
+      AND b.date >= t.month
+      AND b.date < t.month + INTERVAL '1 month'
+     WHERE t.user_id = $1
+     GROUP BY t.id
+     ORDER BY t.month DESC`,
+    [userId],
+  );
+  return response.rows;
+};
+
+export { fetchTarget, fetchAllTargets, upsertTarget, fetchTargetHistory };

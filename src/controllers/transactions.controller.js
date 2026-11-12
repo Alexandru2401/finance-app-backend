@@ -87,6 +87,9 @@ const CSV_LABELS = {
   },
 };
 
+// BOM: Excel citeste fisierul ca UTF-8 si afiseaza corect diacriticele
+const BOM = String.fromCharCode(0xfeff);
+
 // Ghilimele cand e nevoie (virgula, ghilimele, rand nou). Textul scris de user
 // care incepe cu = + - @ e prefixat cu ' ca Excel sa nu-l execute ca formula
 // (CSV injection)
@@ -126,7 +129,7 @@ const exportTransactions = async (req, res, next) => {
       "Content-Disposition",
       `attachment; filename="transactions-${date}.csv"`,
     );
-    res.status(200).send(`\uFEFF${lines.join("\r\n")}\r\n`);
+    res.status(200).send(`${BOM}${lines.join("\r\n")}\r\n`);
   } catch (err) {
     console.log(err.message || err);
     next(err);
