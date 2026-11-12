@@ -8,7 +8,7 @@ const insertUser = async (email, password, language) => {
     await client.query("BEGIN");
 
     const response = await client.query(
-      "INSERT INTO users (email, password, language) VALUES ($1, $2, $3) RETURNING user_id, username, email, plan_type, is_active, created_at, language, currency",
+      "INSERT INTO users (email, password, language) VALUES ($1, $2, $3) RETURNING user_id, username, email, plan_type, is_active, created_at, language, currency, has_completed_onboarding",
       [email, password, language],
     );
     const user = response.rows[0];
@@ -27,7 +27,7 @@ const insertUser = async (email, password, language) => {
 
 const fetchUserByEmail = async (email) => {
   const response = await pool.query(
-    "SELECT user_id, username, email, plan_type, is_active, created_at, language, currency, password FROM users WHERE email=$1",
+    "SELECT user_id, username, email, plan_type, is_active, created_at, language, currency, has_completed_onboarding, password FROM users WHERE email=$1",
     [email],
   );
 
@@ -66,7 +66,7 @@ const deleteRefreshToken = async (token) => {
 
 const fetchUserById = async (id) => {
   const response = await pool.query(
-    "SELECT user_id, email, username FROM users WHERE user_id=$1",
+    "SELECT user_id, email, username, has_completed_onboarding FROM users WHERE user_id=$1",
     [id],
   );
   return response.rows[0];
@@ -74,7 +74,7 @@ const fetchUserById = async (id) => {
 
 const fetchUserInfoById = async (id) => {
   const response = await pool.query(
-    "SELECT user_id, username, email, plan_type, is_active, created_at, language, currency FROM users WHERE user_id=$1",
+    "SELECT user_id, username, email, plan_type, is_active, created_at, language, currency, has_completed_onboarding FROM users WHERE user_id=$1",
     [id],
   );
   return response.rows[0];
@@ -82,9 +82,10 @@ const fetchUserInfoById = async (id) => {
 
 // la schimbarea monedei convertim si toate sumele userului, intr-o singura tranzactie
 // campurile sunt optionale: null/undefined pastreaza valoarea curenta
+// completeOnboarding = true marcheaza onboarding-ul terminat (nu se mai poate anula)
 const updateUserProfile = async (
   userId,
-  { username, currency: newCurrency, language },
+  { username, currency: newCurrency, language, completeOnboarding = false },
 ) => {
   const client = await pool.connect();
   try {
@@ -119,9 +120,17 @@ const updateUserProfile = async (
     const response = await client.query(
       `UPDATE users SET username = COALESCE($1, username),
                          currency = COALESCE($2, currency),
-                         language = COALESCE($3, language)
-       WHERE user_id = $4 RETURNING user_id, username, currency, language`,
-      [username ?? null, newCurrency ?? null, language ?? null, userId],
+                         language = COALESCE($3, language),
+                         has_completed_onboarding = has_completed_onboarding OR $5
+       WHERE user_id = $4
+       RETURNING user_id, username, currency, language, has_completed_onboarding`,
+      [
+        username ?? null,
+        newCurrency ?? null,
+        language ?? null,
+        userId,
+        completeOnboarding,
+      ],
     );
 
     await client.query("COMMIT");

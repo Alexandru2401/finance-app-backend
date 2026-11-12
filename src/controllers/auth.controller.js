@@ -206,18 +206,36 @@ const login = async (req, res, next) => {
 
 const updateUserInfo = async (req, res, next) => {
   try {
-    const { username, currency, language } = req.body ?? {};
+    const { username, currency, language, completeOnboarding } =
+      req.body ?? {};
 
     if (
       username === undefined &&
       currency === undefined &&
-      language === undefined
+      language === undefined &&
+      completeOnboarding === undefined
     ) {
       const error = new Error(
-        "Provide at least one field to update: username, currency, language",
+        "Provide at least one field to update: username, currency, language, completeOnboarding",
       );
       error.status = 400;
       throw error;
+    }
+
+    // finalul onboarding-ului: trimis o singura data, impreuna cu numele si moneda
+    if (completeOnboarding !== undefined) {
+      if (completeOnboarding !== true) {
+        const error = new Error("completeOnboarding can only be true");
+        error.status = 400;
+        throw error;
+      }
+      if (username === undefined || currency === undefined) {
+        const error = new Error(
+          "username and currency are required to complete onboarding",
+        );
+        error.status = 400;
+        throw error;
+      }
     }
 
     // optional; lipsa = ramane numele curent
@@ -256,6 +274,7 @@ const updateUserInfo = async (req, res, next) => {
       username: sanitizedUsername,
       currency,
       language,
+      completeOnboarding: completeOnboarding === true,
     });
 
     res.status(200).json({ success: true, user: updatedUser });
