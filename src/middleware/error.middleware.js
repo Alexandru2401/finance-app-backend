@@ -11,7 +11,8 @@ const errorMiddleware = (err, req, res, next) => {
     const message =
       status < 500 ? err.message || "Bad request" : "Server error";
 
-    res.status(status).json({ succes: false, error: message });
+    // acelasi format ca in controllere: { success: false, message }
+    res.status(status).json({ success: false, message });
   } catch (error) {
     next(error);
   }
