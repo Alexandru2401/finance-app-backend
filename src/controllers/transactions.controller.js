@@ -1,6 +1,7 @@
 import validators from "../validators/inputValidators.js";
 import {
   fetchTransactions,
+  fetchTransactionsForExport,
   fetchTransactionYears,
   fetchCategoryForUser,
   addNewTransaction,
@@ -12,23 +13,37 @@ import {
 const INVALID_AMOUNT =
   "Amount must be greater than 0, with at most 2 decimals and at most 9999999999.99";
 
+// filtrele din query string, comune pentru GET /transactions si /export
+const parseFilters = (query) => {
+  const {
+    search,
+    type,
+    category_id,
+    year,
+    month,
+    day,
+    minAmount,
+    maxAmount,
+    sort,
+  } = query;
+  return {
+    search,
+    type,
+    categoryId: category_id,
+    year: year ? Number(year) : undefined,
+    month: month ? Number(month) : undefined,
+    day: day ? Number(day) : undefined,
+    minAmount: minAmount != null ? Number(minAmount) : undefined,
+    maxAmount: maxAmount != null ? Number(maxAmount) : undefined,
+    sort,
+  };
+};
+
 // GET /transactions  (?type=expense&category_id=..&year=..&month=..&day=..&minAmount=..&maxAmount=..&search=..&sort=newest&page=1&limit=15)
 // limit implicit si maxim 15
 const getTransactions = async (req, res, next) => {
   try {
-    const {
-      search,
-      type,
-      category_id,
-      year,
-      month,
-      day,
-      minAmount,
-      maxAmount,
-      sort,
-      page,
-      limit,
-    } = req.query;
+    const { page, limit } = req.query;
 
     const {
       rows,
@@ -38,15 +53,7 @@ const getTransactions = async (req, res, next) => {
       perPage,
       totalPages,
     } = await fetchTransactions(req.user.user_id, {
-      search,
-      type,
-      categoryId: category_id,
-      year: year ? Number(year) : undefined,
-      month: month ? Number(month) : undefined,
-      day: day ? Number(day) : undefined,
-      minAmount: minAmount != null ? Number(minAmount) : undefined,
-      maxAmount: maxAmount != null ? Number(maxAmount) : undefined,
-      sort,
+      ...parseFilters(req.query),
       page,
       perPage: limit,
     });
@@ -60,6 +67,66 @@ const getTransactions = async (req, res, next) => {
       limit: perPage,
       totalPages,
     });
+  } catch (err) {
+    console.log(err.message || err);
+    next(err);
+  }
+};
+
+// ---- CSV ----
+const CSV_LABELS = {
+  ro: {
+    header: ["Data", "Tip", "Categorie", "Sumă", "Notițe"],
+    types: { income: "Venit", expense: "Cheltuială", savings: "Economie" },
+    uncategorized: "Fără categorie",
+  },
+  en: {
+    header: ["Date", "Type", "Category", "Amount", "Notes"],
+    types: { income: "Income", expense: "Expense", savings: "Savings" },
+    uncategorized: "Uncategorized",
+  },
+};
+
+// Ghilimele cand e nevoie (virgula, ghilimele, rand nou). Textul scris de user
+// care incepe cu = + - @ e prefixat cu ' ca Excel sa nu-l execute ca formula
+// (CSV injection)
+const csvCell = (value, { userText = false } = {}) => {
+  let text = value == null ? "" : String(value);
+  if (userText && /^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
+
+// GET /transactions/export  (aceleasi filtre ca GET /transactions, fara paginare)
+// ?lang=ro|en alege limba capului de tabel; fisier CSV cu BOM, ca Excel sa
+// afiseze corect diacriticele
+const exportTransactions = async (req, res, next) => {
+  try {
+    const labels = CSV_LABELS[req.query.lang] ?? CSV_LABELS.en;
+    const rows = await fetchTransactionsForExport(
+      req.user.user_id,
+      parseFilters(req.query),
+    );
+
+    const lines = [
+      labels.header.join(","),
+      ...rows.map((r) =>
+        [
+          csvCell(r.date),
+          csvCell(labels.types[r.type] ?? r.type),
+          csvCell(r.category_name ?? labels.uncategorized, { userText: true }),
+          csvCell(r.amount.toFixed(2)),
+          csvCell(r.notes, { userText: true }),
+        ].join(","),
+      ),
+    ];
+
+    const date = new Date().toISOString().slice(0, 10);
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="transactions-${date}.csv"`,
+    );
+    res.status(200).send(`\uFEFF${lines.join("\r\n")}\r\n`);
   } catch (err) {
     console.log(err.message || err);
     next(err);
@@ -315,6 +382,7 @@ const deleteTransaction = async (req, res, next) => {
 
 export {
   getTransactions,
+  exportTransactions,
   getTransactionYears,
   addTransaction,
   updateTransaction,

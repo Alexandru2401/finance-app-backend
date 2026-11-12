@@ -11,7 +11,11 @@ const toSafeInt = (value, fallback, max = Infinity) => {
   return Math.min(num, max);
 };
 
-const fetchTransactions = async (userId, filters = {}) => {
+// maxim de randuri intr-un export CSV (protectie impotriva raspunsurilor uriase)
+const MAX_EXPORT_ROWS = 10000;
+
+// WHERE + ORDER BY comune pentru lista paginata si pentru export
+const buildTransactionFilters = (userId, filters = {}) => {
   const {
     search,
     type, // 'income' | 'expense' | 'savings'
@@ -23,9 +27,6 @@ const fetchTransactions = async (userId, filters = {}) => {
     maxAmount,
     sort = "newest", // 'newest' | 'oldest' | 'highest' | 'lowest'
   } = filters;
-
-  const page = toSafeInt(filters.page, 1);
-  const perPage = toSafeInt(filters.perPage, MAX_PER_PAGE, MAX_PER_PAGE);
 
   const conditions = ["b.user_id = $1"];
   const values = [userId];
@@ -74,6 +75,19 @@ const fetchTransactions = async (userId, filters = {}) => {
       highest: "b.amount DESC",
       lowest: "b.amount ASC",
     }[sort] ?? "b.date DESC";
+
+  return { where, values, orderBy, nextIndex: i };
+};
+
+const fetchTransactions = async (userId, filters = {}) => {
+  const page = toSafeInt(filters.page, 1);
+  const perPage = toSafeInt(filters.perPage, MAX_PER_PAGE, MAX_PER_PAGE);
+  const {
+    where,
+    values,
+    orderBy,
+    nextIndex: i,
+  } = buildTransactionFilters(userId, filters);
 
   const offset = (page - 1) * perPage;
 
@@ -184,6 +198,26 @@ const deleteTransactionById = async (itemId, userId) => {
   return response.rowCount > 0;
 };
 
+// toate tranzactiile care respecta filtrele, fara paginare, pentru CSV
+// data ca YYYY-MM-DD (fara ora), ca sa nu se mute ziua din cauza fusului orar
+const fetchTransactionsForExport = async (userId, filters = {}) => {
+  const { where, values, orderBy, nextIndex } = buildTransactionFilters(
+    userId,
+    filters,
+  );
+  const response = await pool.query(
+    `SELECT to_char(b.date, 'YYYY-MM-DD') AS date, b.type, b.amount, b.notes,
+            c.name AS category_name
+     FROM budget_items b
+     LEFT JOIN categories c ON c.category_id = b.category_id
+     WHERE ${where}
+     ORDER BY ${orderBy}
+     LIMIT $${nextIndex}`,
+    [...values, MAX_EXPORT_ROWS],
+  );
+  return response.rows.map((r) => ({ ...r, amount: Number(r.amount) }));
+};
+
 // anii in care userul are cel putin o tranzactie, de la cel mai recent
 const fetchTransactionYears = async (userId) => {
   const response = await pool.query(
@@ -198,6 +232,7 @@ const fetchTransactionYears = async (userId) => {
 
 export {
   fetchTransactions,
+  fetchTransactionsForExport,
   fetchTransactionYears,
   fetchCategoryForUser,
   addNewTransaction,
