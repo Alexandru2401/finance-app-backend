@@ -1,6 +1,7 @@
 import validators from "../validators/inputValidators.js";
 import {
   fetchTransactions,
+  fetchTransactionYears,
   fetchCategoryForUser,
   addNewTransaction,
   fetchTransactionById,
@@ -59,6 +60,18 @@ const getTransactions = async (req, res, next) => {
       limit: perPage,
       totalPages,
     });
+  } catch (err) {
+    console.log(err.message || err);
+    next(err);
+  }
+};
+
+// GET /transactions/years  ->  { years: [2026, 2025] }
+// pentru filtrul de an; lista goala daca userul nu are tranzactii
+const getTransactionYears = async (req, res, next) => {
+  try {
+    const years = await fetchTransactionYears(req.user.user_id);
+    res.status(200).json({ success: true, years });
   } catch (err) {
     console.log(err.message || err);
     next(err);
@@ -302,6 +315,7 @@ const deleteTransaction = async (req, res, next) => {
 
 export {
   getTransactions,
+  getTransactionYears,
   addTransaction,
   updateTransaction,
   deleteTransaction,

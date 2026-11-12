@@ -3,6 +3,7 @@ import { validateToken } from "../utils/jwtHelperFn.js";
 import rateLimit from "../middleware/rateLimit.middleware.js";
 import {
   getTransactions,
+  getTransactionYears,
   addTransaction,
   updateTransaction,
   deleteTransaction,
@@ -13,6 +14,8 @@ const transactionsRouter = Router();
 transactionsRouter.use(validateToken, rateLimit(100, 15));
 
 transactionsRouter.get("/", getTransactions);
+
+transactionsRouter.get("/years", getTransactionYears);
 
 transactionsRouter.post("/", addTransaction);
 

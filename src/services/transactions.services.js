@@ -184,8 +184,21 @@ const deleteTransactionById = async (itemId, userId) => {
   return response.rowCount > 0;
 };
 
+// anii in care userul are cel putin o tranzactie, de la cel mai recent
+const fetchTransactionYears = async (userId) => {
+  const response = await pool.query(
+    `SELECT DISTINCT EXTRACT(YEAR FROM date)::int AS year
+     FROM budget_items
+     WHERE user_id = $1
+     ORDER BY year DESC`,
+    [userId],
+  );
+  return response.rows.map((row) => row.year);
+};
+
 export {
   fetchTransactions,
+  fetchTransactionYears,
   fetchCategoryForUser,
   addNewTransaction,
   fetchTransactionById,
