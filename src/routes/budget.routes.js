@@ -5,6 +5,7 @@ import {
   getBudgetSummary,
   getTopSpending,
   getBudgetTrend,
+  getByCategory,
 } from "../controllers/budget.controller.js";
 
 const budgetRouter = Router();
@@ -15,5 +16,6 @@ budgetRouter.use(validateToken, rateLimit(100, 15));
 budgetRouter.get("/summary", getBudgetSummary);
 budgetRouter.get("/spending/top", getTopSpending);
 budgetRouter.get("/budget-trend", getBudgetTrend);
+budgetRouter.get("/by-category", getByCategory);
 
 export default budgetRouter;

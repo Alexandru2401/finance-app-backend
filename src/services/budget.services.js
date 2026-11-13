@@ -125,7 +125,25 @@ const fetchBudgetTrend = async (userId, period) => {
   return response.rows;
 };
 
+// totalul pe categorii pt un tip (income/expense/savings) din period, cel mai mare primul
+// tranzactiile fara categorie (categoria stearsa) intra impreuna, cu category_id null
+const fetchByCategory = async (userId, type, period) => {
+  const range = resolveRange(period, 3);
+  const response = await pool.query(
+    `SELECT b.category_id, c.name AS category, SUM(b.amount) AS total
+     FROM budget_items b
+     LEFT JOIN categories c ON c.category_id = b.category_id
+     WHERE b.user_id = $1 AND b.type = $2
+       AND ${rangeCondition(range, "b.date")}
+     GROUP BY b.category_id, c.name
+     ORDER BY total DESC`,
+    [userId, type, ...range.values],
+  );
+  return response.rows;
+};
+
 export {
+  fetchByCategory,
   fetchBudgetSummary,
   fetchTargetSummary,
   fetchTopExpenses,

@@ -3,6 +3,7 @@ import {
   fetchTargetSummary,
   fetchTopExpenses,
   fetchBudgetTrend,
+  fetchByCategory,
 } from "../services/budget.services.js";
 import { parsePeriod, PERIOD_PRESETS } from "../utils/period.js";
 import { targetNet } from "../utils/targetNet.js";
@@ -94,4 +95,34 @@ const getBudgetTrend = async (req, res, next) => {
   }
 };
 
-export { getBudgetSummary, getTopSpending, getBudgetTrend };
+const TYPES = ["income", "expense", "savings"];
+
+// GET /budget/by-category?type=expense  (+ ?period= ca la summary; implicit luna curenta)
+const getByCategory = async (req, res, next) => {
+  try {
+    const { type } = req.query;
+    if (!TYPES.includes(type)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid type. Must be one of: income, expense, savings",
+      });
+    }
+
+    const period = parsePeriod(req.query.period);
+    if (period === false) return invalidPeriod(res);
+
+    const rows = await fetchByCategory(req.user.user_id, type, period);
+    const categories = rows.map((row) => ({
+      category_id: row.category_id,
+      category: row.category,
+      total: Number(row.total),
+    }));
+
+    res.status(200).json({ success: true, categories });
+  } catch (err) {
+    console.log(err.message || err);
+    next(err);
+  }
+};
+
+export { getBudgetSummary, getTopSpending, getBudgetTrend, getByCategory };
