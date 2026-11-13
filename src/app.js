@@ -22,7 +22,14 @@ app.set("trust proxy", 1);
 const allowedOrigins = CLIENT_URL?.split(",").map((url) => url.trim()) ?? [];
 
 app.use(helmet());
-app.use(cors({ origin: allowedOrigins, credentials: true }));
+// RateLimit exposed so the frontend can show how long to wait after a 429
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+    exposedHeaders: ["RateLimit"],
+  }),
+);
 
 app.use(express.json({ limit: "10kb" }));
 app.use(cookieParser());

@@ -10,7 +10,7 @@ import {
 
 const budgetRouter = Router();
 
-budgetRouter.use(validateToken, rateLimit(100, 15));
+budgetRouter.use(validateToken, rateLimit(300, 15));
 
 // doar statistici; listele de tranzactii sunt in /transactions
 budgetRouter.get("/summary", getBudgetSummary);
