@@ -115,6 +115,26 @@ const updateUserProfile = async (
          WHERE user_id = $2`,
         [rate, userId],
       );
+      // regulile recurente, ca tranzactiile generate de acum sa fie in moneda noua
+      // minim 0.01: CHECK (amount > 0); o suma foarte mica nu ajunge 0.00 la conversie
+      await client.query(
+        `UPDATE recurring_items
+         SET amount = GREATEST(ROUND((amount * $1)::numeric, 2), 0.01),
+             updated_at = now()
+         WHERE user_id = $2`,
+        [rate, userId],
+      );
+      // notificarile pastreaza suma (nu textul), iar FE-ul o afiseaza in moneda
+      // curenta a userului, deci si ea se converteste
+      await client.query(
+        `UPDATE notifications
+         SET data = jsonb_set(
+           data, '{amount}',
+           to_jsonb(ROUND(((data->>'amount')::numeric * $1)::numeric, 2))
+         )
+         WHERE user_id = $2 AND jsonb_typeof(data->'amount') = 'number'`,
+        [rate, userId],
+      );
     }
 
     const response = await client.query(

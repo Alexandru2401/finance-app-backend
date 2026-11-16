@@ -40,10 +40,4 @@ const nextRunDate = (dayOfMonth, today = todayInRomania()) => {
   return thisMonth > today ? thisMonth : onDay(year, monthIndex + 1, dayOfMonth);
 };
 
-// data de dupa `run`, in luna urmatoare (pt generarea automata, task G1)
-const followingRunDate = (dayOfMonth, run) => {
-  const { year, monthIndex } = parse(run);
-  return onDay(year, monthIndex + 1, dayOfMonth ?? 1);
-};
-
-export { todayInRomania, nextRunDate, followingRunDate };
+export { todayInRomania, nextRunDate };
