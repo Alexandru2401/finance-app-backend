@@ -5,15 +5,19 @@ import {
   getBudgetSummary,
   getTopSpending,
   getBudgetTrend,
+  getByCategory,
+  getBudgetHealth,
 } from "../controllers/budget.controller.js";
 
 const budgetRouter = Router();
 
-budgetRouter.use(validateToken, rateLimit(100, 15));
+budgetRouter.use(validateToken, rateLimit(300, 15));
 
 // doar statistici; listele de tranzactii sunt in /transactions
 budgetRouter.get("/summary", getBudgetSummary);
 budgetRouter.get("/spending/top", getTopSpending);
 budgetRouter.get("/budget-trend", getBudgetTrend);
+budgetRouter.get("/by-category", getByCategory);
+budgetRouter.get("/health", getBudgetHealth);
 
 export default budgetRouter;

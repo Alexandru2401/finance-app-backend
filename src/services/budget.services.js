@@ -21,6 +21,13 @@ const PRESET_RANGES = {
     start: `(${MONTH_START} - INTERVAL '11 months')`,
     end: TOMORROW,
   },
+  // toata perioada: de la luna primei tranzactii a userului pana azi
+  // (fara tranzactii: luna curenta). Toate query-urile de mai jos au userId ca $1
+  all: {
+    start: `(SELECT COALESCE(date_trunc('month', MIN(date)), ${MONTH_START})
+             FROM budget_items WHERE user_id = $1)`,
+    end: TOMORROW,
+  },
 };
 
 // period vine deja validat din parsePeriod (utils/period.js): { preset } sau { from, to }
@@ -84,6 +91,7 @@ const fetchTargetSummary = async (userId, period) => {
 };
 
 // top N cele mai mari cheltuieli din period
+//  la sume egale: cea mai recenta, apoi item_id, ca LIMIT sa aleaga mereu aceleasi
 const fetchTopExpenses = async (userId, limit, period) => {
   const range = resolveRange(period, 3);
   const response = await pool.query(
@@ -93,14 +101,14 @@ const fetchTopExpenses = async (userId, limit, period) => {
      LEFT JOIN categories c ON c.category_id = b.category_id
      WHERE b.user_id = $1 AND b.type = 'expense'
        AND ${rangeCondition(range, "b.date")}
-     ORDER BY b.amount DESC
+     ORDER BY b.amount DESC, b.date DESC, b.created_at DESC NULLS LAST, b.item_id DESC
      LIMIT $2`,
     [userId, limit, ...range.values],
   );
   return response.rows;
 };
 
-// income vs expense pe luni, cate un punct pt fiecare luna din period (pt grafic de trend)
+// income, expense si savings pe luni, cate un punct pt fiecare luna din period (pt grafice)
 // lunile sunt generate direct in SQL (generate_series), ca sa nu depinda
 // de timezone-ul serverului Node vs. cel al bazei de date
 // la un range pe zile, lunile de la capete contin doar zilele din interval
@@ -113,7 +121,8 @@ const fetchBudgetTrend = async (userId, period) => {
      )
      SELECT to_char(m.month, 'YYYY-MM') AS month,
             COALESCE(SUM(b.amount) FILTER (WHERE b.type = 'income'), 0) AS income,
-            COALESCE(SUM(b.amount) FILTER (WHERE b.type = 'expense'), 0) AS expense
+            COALESCE(SUM(b.amount) FILTER (WHERE b.type = 'expense'), 0) AS expense,
+            COALESCE(SUM(b.amount) FILTER (WHERE b.type = 'savings'), 0) AS savings
      FROM months m
      LEFT JOIN budget_items b
        ON date_trunc('month', b.date) = m.month AND b.user_id = $1
@@ -125,7 +134,52 @@ const fetchBudgetTrend = async (userId, period) => {
   return response.rows;
 };
 
+// totalul pe categorii pt un tip (income/expense/savings) din period, cel mai mare primul
+// tranzactiile fara categorie (categoria stearsa) intra impreuna, cu category_id null
+const fetchByCategory = async (userId, type, period) => {
+  const range = resolveRange(period, 3);
+  const response = await pool.query(
+    `SELECT b.category_id, c.name AS category, SUM(b.amount) AS total
+     FROM budget_items b
+     LEFT JOIN categories c ON c.category_id = b.category_id
+     WHERE b.user_id = $1 AND b.type = $2
+       AND ${rangeCondition(range, "b.date")}
+     GROUP BY b.category_id, c.name
+     ORDER BY total DESC, c.name ASC NULLS LAST`,
+    [userId, type, ...range.values],
+  );
+  return response.rows;
+};
+
+// pt Budget Health: venituri, cheltuieli si numarul de tranzactii pe luna,
+// pentru luna lui `today` (doar pana azi) si cele 3 luni complete dinainte
+// today = 'YYYY-MM-DD', ziua userului (trimisa de FE)
+const fetchHealthTotals = async (userId, today) => {
+  const response = await pool.query(
+    `SELECT to_char(date_trunc('month', date::timestamp), 'YYYY-MM') AS month,
+            COALESCE(SUM(amount) FILTER (WHERE type = 'income'), 0)  AS income,
+            COALESCE(SUM(amount) FILTER (WHERE type = 'expense'), 0) AS expense,
+            COALESCE(SUM(amount) FILTER (WHERE type = 'savings'), 0) AS savings,
+            COUNT(*)::int AS count
+     FROM budget_items
+     WHERE user_id = $1
+       AND date >= (date_trunc('month', $2::date::timestamp) - INTERVAL '3 months')::date
+       AND date <= $2::date
+     GROUP BY 1`,
+    [userId, today],
+  );
+  return response.rows.map((row) => ({
+    month: row.month,
+    income: Number(row.income),
+    expense: Number(row.expense),
+    savings: Number(row.savings),
+    count: row.count,
+  }));
+};
+
 export {
+  fetchHealthTotals,
+  fetchByCategory,
   fetchBudgetSummary,
   fetchTargetSummary,
   fetchTopExpenses,
