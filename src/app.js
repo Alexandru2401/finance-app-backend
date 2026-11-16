@@ -11,6 +11,7 @@ import transactionsRouter from "./routes/transactions.routes.js";
 import targetRouter from "./routes/target.routes.js";
 import errorMiddleware from "./middleware/error.middleware.js";
 import categoriesRouter from "./routes/categories.routes.js";
+import recurringRouter from "./routes/recurring.routes.js";
 
 const app = express();
 
@@ -40,6 +41,7 @@ app.use(`${BASE_PATH}/budget`, budgetRouter);
 app.use(`${BASE_PATH}/transactions`, transactionsRouter);
 app.use(`${BASE_PATH}/target`, targetRouter);
 app.use(`${BASE_PATH}/categories`, categoriesRouter);
+app.use(`${BASE_PATH}/recurring`, recurringRouter);
 
 app.use(errorMiddleware);
 

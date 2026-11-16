@@ -150,17 +150,7 @@ const getTransactionYears = async (req, res, next) => {
 
 const TYPE = ["income", "expense", "savings"];
 
-// data in format YYYY-MM-DD si care exista in calendar (ex. respinge 2026-02-31)
-const isValidDate = (value) => {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return false;
-  }
-  const parsed = new Date(`${value}T00:00:00Z`);
-  return (
-    !Number.isNaN(parsed.getTime()) &&
-    parsed.toISOString().slice(0, 10) === value
-  );
-};
+const { isValidDate } = validators;
 
 // POST /transactions  body: { type, amount, date: "YYYY-MM-DD", category_id, notes?: string | null }
 const addTransaction = async (req, res, next) => {

@@ -93,7 +93,7 @@ const fetchTransactions = async (userId, filters = {}) => {
 
   const listQuery = `
     SELECT b.item_id, b.type, b.amount, b.date, b.notes,
-           b.category_id, c.name AS category_name
+           b.category_id, c.name AS category_name, b.recurring_id
     FROM budget_items b
     LEFT JOIN categories c ON c.category_id = b.category_id
     WHERE ${where}
