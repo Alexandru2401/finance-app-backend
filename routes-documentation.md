@@ -13,6 +13,8 @@ npx supabase migration list
   - [POST /auth/logout](#post-authlogout)
   - [GET /auth/user-info](#get-authuser-info)
   - [PATCH /auth/user-info](#patch-authuser-info)
+  - [DELETE /auth/data](#delete-authdata)
+  - [DELETE /auth/account](#delete-authaccount)
 - [Recurring](#recurring)
   - [GET /recurring](#get-recurring)
   - [POST /recurring](#post-recurring)
@@ -167,6 +169,38 @@ Fără body. Răspunsul e același și dacă nu există o sesiune activă (logou
   }
 }
 ```
+
+---
+
+### DELETE /auth/data
+
+🔒 **Reset Data.** Șterge definitiv tranzacțiile, țintele, tranzacțiile recurente, notificările și categoriile userului, apoi adaugă din nou cele 12 categorii de pornire, în limba contului. Contul, setările și sesiunea rămân. Totul se face într-o singură tranzacție DB. Limită: 5 cereri / 15 min.
+
+**Request body**
+
+```json
+{ "password": "parola-curenta" }
+```
+
+**Response** `204 No Content`
+
+**Erori:** `400` („Password is required” / „Password is incorrect”; 400 și nu 401, ca FE-ul să nu încerce un refresh de token), `404` (userul nu există).
+
+---
+
+### DELETE /auth/account
+
+🔒 **Delete Account.** Șterge definitiv userul, toate datele lui (ca la `DELETE /auth/data`) și toate sesiunile (`refresh_tokens`), într-o singură tranzacție DB, apoi șterge cookie-urile `accessToken` și `refreshToken`. Limită: 5 cereri / 15 min.
+
+**Request body**
+
+```json
+{ "password": "parola-curenta" }
+```
+
+**Response** `204 No Content`
+
+**Erori:** `400` („Password is required” / „Password is incorrect”), `404` (userul nu există).
 
 ---
 

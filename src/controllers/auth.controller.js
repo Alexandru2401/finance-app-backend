@@ -11,6 +11,8 @@ import {
   updateUserProfile,
   fetchUserPasswordById,
   updatePassword,
+  resetUserData,
+  deleteUserAccount,
 } from "../services/auth.services.js";
 import { hashPassword, comparePassword } from "../utils/hashPassword.js";
 import {
@@ -442,7 +444,76 @@ const updateUserPassword = async (req, res, next) => {
   }
 };
 
+// Reset Data si Delete Account cer parola curenta, ca o sesiune ramasa
+// deschisa pe alt dispozitiv sa nu poata sterge datele
+// intoarce un raspuns de eroare sau null daca parola e corecta
+const checkPassword = async (req, res) => {
+  const { password } = req.body ?? {};
+  if (typeof password !== "string" || password === "") {
+    return res
+      .status(400)
+      .json({ success: false, message: "Password is required" });
+  }
+
+  const user = await fetchUserPasswordById(req.user.user_id);
+  if (!user) {
+    return res.status(404).json({ success: false, message: "User not found" });
+  }
+
+  // 400, nu 401: la 401/403 frontend-ul incearca un refresh de token
+  if (!(await comparePassword(password, user.password))) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Password is incorrect" });
+  }
+  return null;
+};
+
+// DELETE /auth/data  body: { password }
+// sterge tranzactiile, tintele, recurentele, notificarile si categoriile, apoi
+// pune la loc categoriile de pornire; contul si sesiunea raman
+const resetData = async (req, res, next) => {
+  try {
+    const failed = await checkPassword(req, res);
+    if (failed) return failed;
+
+    const user = await fetchUserInfoById(req.user.user_id);
+    await resetUserData(req.user.user_id, user?.language ?? "ro");
+
+    res.status(204).end();
+  } catch (err) {
+    console.log(err.message || err);
+    next(err);
+  }
+};
+
+// DELETE /auth/account  body: { password }
+// sterge userul cu toate datele si sesiunile, apoi sterge cookie-urile
+const deleteAccount = async (req, res, next) => {
+  try {
+    const failed = await checkPassword(req, res);
+    if (failed) return failed;
+
+    await deleteUserAccount(req.user.user_id);
+
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    };
+    res.clearCookie("accessToken", cookieOptions);
+    res.clearCookie("refreshToken", cookieOptions);
+
+    res.status(204).end();
+  } catch (err) {
+    console.log(err.message || err);
+    next(err);
+  }
+};
+
 export {
+  resetData,
+  deleteAccount,
   register,
   login,
   logout,

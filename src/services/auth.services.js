@@ -203,7 +203,60 @@ const updatePassword = async (userId, hashedPassword, keepToken) => {
   }
 };
 
+// toate datele userului, in ordinea in care tabelele depind unele de altele;
+// stergerile sunt explicite, nu depind de regulile ON DELETE din tabelele vechi
+const deleteUserData = async (client, userId) => {
+  for (const table of [
+    "notifications",
+    "budget_items", // inainte de recurring_items si categories (le refera)
+    "recurring_items", // inainte de categories
+    "budget_targets",
+    "categories",
+  ]) {
+    await client.query(`DELETE FROM ${table} WHERE user_id = $1`, [userId]);
+  }
+};
+
+// Reset Data: sterge tranzactiile, tintele, recurentele, notificarile si
+// categoriile, apoi pune la loc categoriile de pornire (ca la register), in
+// limba contului. Contul, setarile si sesiunile raman
+const resetUserData = async (userId, language) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await deleteUserData(client, userId);
+    await insertStarterCategories(client, userId, language);
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+// Delete Account: toate datele, sesiunile si userul, intr-o singura tranzactie
+const deleteUserAccount = async (userId) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await deleteUserData(client, userId);
+    await client.query("DELETE FROM refresh_tokens WHERE user_id = $1", [
+      userId,
+    ]);
+    await client.query("DELETE FROM users WHERE user_id = $1", [userId]);
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
 export {
+  resetUserData,
+  deleteUserAccount,
   fetchUserPasswordById,
   updatePassword,
   insertUser,
