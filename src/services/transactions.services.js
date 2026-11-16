@@ -32,9 +32,15 @@ const buildTransactionFilters = (userId, filters = {}) => {
   const values = [userId];
   let i = 2;
 
-  if (search) {
-    conditions.push(`c.name ILIKE $${i++}`);
-    values.push(`%${search}%`);
+  // cauta in numele categoriei si in notite (fara diferenta intre litere mari/mici);
+  // \ % _ scrise de user se cauta ca text, nu ca wildcard-uri ILIKE
+  if (typeof search === "string" && search.trim() !== "") {
+    const escaped = search.trim().replace(/[\\%_]/g, (ch) => `\\${ch}`);
+    conditions.push(
+      `(c.name ILIKE $${i} ESCAPE '\\' OR b.notes ILIKE $${i} ESCAPE '\\')`,
+    );
+    values.push(`%${escaped}%`);
+    i++;
   }
   // fara type (sau "all" / valoare necunoscuta) => toate tipurile
   if (TYPES.includes(type)) {
