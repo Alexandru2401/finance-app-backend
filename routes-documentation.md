@@ -15,6 +15,8 @@ npx supabase migration list
   - [PATCH /auth/user-info](#patch-authuser-info)
   - [DELETE /auth/data](#delete-authdata)
   - [DELETE /auth/account](#delete-authaccount)
+- [Budget](#budget)
+  - [GET /budget/health](#get-budgethealth)
 - [Recurring](#recurring)
   - [GET /recurring](#get-recurring)
   - [POST /recurring](#post-recurring)
@@ -201,6 +203,43 @@ Fără body. Răspunsul e același și dacă nu există o sesiune activă (logou
 **Response** `204 No Content`
 
 **Erori:** `400` („Password is required” / „Password is incorrect”), `404` (userul nu există).
+
+---
+
+## Budget
+
+### GET /budget/health
+
+🔒 **Budget Health**: scorul 0–100 după regulile din `../analitycs.md`. Limită: 300 de cereri / 15 min (comună cu restul `/budget`).
+
+**Query:** `today=YYYY-MM-DD` (opțional): ziua userului, ca luna curentă să nu fie cea UTC. Fără el, ziua de azi din România.
+
+**Response** `200 OK`
+
+```json
+{
+  "success": true,
+  "health": {
+    "score": 72,
+    "label": "good",
+    "components": [
+      { "key": "trend", "points": 8, "max": 20, "values": { "projection": 3600, "average": 3000, "deltaPct": 15 } },
+      { "key": "pace", "points": 26.3, "max": 35, "values": { "spent": 1700, "base": 3000, "expected": 1600, "fromTarget": false, "pace": 1.06 } },
+      { "key": "savingsRate", "points": 20, "max": 25, "values": { "ratePct": 16, "goalPct": 20, "fromTarget": false, "noIncome": false } },
+      { "key": "positiveMonths", "points": 20, "max": 20, "values": { "positive": 3, "months": 3 } }
+    ],
+    "month": "2026-11",
+    "day": 16
+  }
+}
+```
+
+- `label`: `excellent` (80–100), `good` (60–79), `warning` (40–59), `risk` (0–39).
+- `components`: cele mai problematice primele (cele mai multe puncte pierdute). `values` = cifrele din care FE construiește propoziția (tradusă).
+- `score: null`, `label: null`, `components: []` = nu există încă o lună completă cu tranzacții.
+- În primele 5 zile din lună lipsesc `pace` și `trend`; scorul se rescalează la 100.
+
+**Erori:** `400` (`today` invalid).
 
 ---
 

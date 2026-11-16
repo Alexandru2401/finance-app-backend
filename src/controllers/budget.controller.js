@@ -4,9 +4,14 @@ import {
   fetchTopExpenses,
   fetchBudgetTrend,
   fetchByCategory,
+  fetchHealthTotals,
 } from "../services/budget.services.js";
+import { fetchTarget } from "../services/target.services.js";
 import { parsePeriod, PERIOD_PRESETS } from "../utils/period.js";
 import { targetNet } from "../utils/targetNet.js";
+import { computeBudgetHealth } from "../utils/budgetHealth.js";
+import { todayInRomania } from "../utils/recurring.js";
+import validators from "../validators/inputValidators.js";
 
 // ?period= invalid (vezi utils/period.js)
 const invalidPeriod = (res) =>
@@ -86,6 +91,7 @@ const getBudgetTrend = async (req, res, next) => {
       month: row.month,
       income: Number(row.income),
       expense: Number(row.expense),
+      savings: Number(row.savings),
     }));
 
     res.status(200).json({ success: true, trend });
@@ -125,4 +131,69 @@ const getByCategory = async (req, res, next) => {
   }
 };
 
-export { getBudgetSummary, getTopSpending, getBudgetTrend, getByCategory };
+// 'YYYY-MM' cu `delta` luni fata de anul/luna date (monthIndex 0-11), in UTC
+const monthKey = (year, monthIndex, delta = 0) => {
+  const date = new Date(Date.UTC(year, monthIndex + delta, 1));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+};
+
+// GET /budget/health?today=YYYY-MM-DD  (implicit ziua de azi din Romania)
+// scorul 0-100 dupa analitycs.md; score null = nu exista inca o luna completa cu date
+const getBudgetHealth = async (req, res, next) => {
+  try {
+    const { today: todayParam } = req.query;
+    if (todayParam !== undefined && !validators.isValidDate(todayParam)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid today. Expected format: YYYY-MM-DD",
+      });
+    }
+    const today = todayParam ?? todayInRomania();
+
+    const [year, month, day] = today.split("-").map(Number);
+    const monthIndex = month - 1;
+    const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const current = monthKey(year, monthIndex);
+    const lastMonth = monthKey(year, monthIndex, -1);
+
+    const [totals, currentTarget, lastTarget] = await Promise.all([
+      fetchHealthTotals(req.user.user_id, today),
+      fetchTarget(req.user.user_id, `${current}-01`),
+      fetchTarget(req.user.user_id, `${lastMonth}-01`),
+    ]);
+
+    const byMonth = new Map(totals.map((row) => [row.month, row]));
+    const empty = { income: 0, expense: 0, savings: 0, count: 0 };
+    // ultimele 3 luni complete, cea mai recenta ultima
+    const lastMonths = [-3, -2, -1].map(
+      (delta) => byMonth.get(monthKey(year, monthIndex, delta)) ?? empty,
+    );
+
+    const health = computeBudgetHealth({
+      day,
+      daysInMonth,
+      spentSoFar: byMonth.get(current)?.expense ?? 0,
+      expenseTarget:
+        currentTarget?.expense == null ? null : Number(currentTarget.expense),
+      lastMonths,
+      savingsTarget:
+        lastTarget?.savings == null ? null : Number(lastTarget.savings),
+    });
+
+    res.status(200).json({
+      success: true,
+      health: { ...health, month: current, day },
+    });
+  } catch (err) {
+    console.log(err.message || err);
+    next(err);
+  }
+};
+
+export {
+  getBudgetSummary,
+  getTopSpending,
+  getBudgetTrend,
+  getByCategory,
+  getBudgetHealth,
+};
