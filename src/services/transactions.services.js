@@ -11,7 +11,21 @@ const toSafeInt = (value, fallback, max = Infinity) => {
   return Math.min(num, max);
 };
 
-const fetchTransactions = async (userId, filters = {}) => {
+// maxim de randuri intr-un export CSV (protectie impotriva raspunsurilor uriase)
+const MAX_EXPORT_ROWS = 10000;
+
+// textul cautat ca suma: "1200", "1.200", "1 200", "49,99", "49.99" -> numar; altfel null
+// separatorul de mii (. sau spatiu) se ignora; zecimalele (, sau .) au maxim 2 cifre
+const parseSearchAmount = (text) => {
+  const compact = text.replace(/\s/g, "");
+  const match = /^(\d{1,3}(?:\.\d{3})+|\d+)(?:[.,](\d{1,2}))?$/.exec(compact);
+  if (!match) return null;
+  const amount = Number(`${match[1].replace(/\./g, "")}.${match[2] ?? "0"}`);
+  return Number.isFinite(amount) && amount > 0 ? amount : null;
+};
+
+// WHERE + ORDER BY comune pentru lista paginata si pentru export
+const buildTransactionFilters = (userId, filters = {}) => {
   const {
     search,
     type, // 'income' | 'expense' | 'savings'
@@ -24,16 +38,28 @@ const fetchTransactions = async (userId, filters = {}) => {
     sort = "newest", // 'newest' | 'oldest' | 'highest' | 'lowest'
   } = filters;
 
-  const page = toSafeInt(filters.page, 1);
-  const perPage = toSafeInt(filters.perPage, MAX_PER_PAGE, MAX_PER_PAGE);
-
   const conditions = ["b.user_id = $1"];
   const values = [userId];
   let i = 2;
 
-  if (search) {
-    conditions.push(`c.name ILIKE $${i++}`);
-    values.push(`%${search}%`);
+  // cauta in numele categoriei si in notite (fara diferenta intre litere mari/mici);
+  // \ % _ scrise de user se cauta ca text, nu ca wildcard-uri ILIKE
+  // daca textul e o suma ("1200", "1.200", "49,99"), gaseste si tranzactiile cu exact acea suma
+  if (typeof search === "string" && search.trim() !== "") {
+    const text = search.trim();
+    const escaped = text.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+    const textMatch = `c.name ILIKE $${i} ESCAPE '\\' OR b.notes ILIKE $${i} ESCAPE '\\'`;
+    values.push(`%${escaped}%`);
+    i++;
+
+    const amount = parseSearchAmount(text);
+    if (amount !== null) {
+      conditions.push(`(${textMatch} OR b.amount = $${i})`);
+      values.push(amount);
+      i++;
+    } else {
+      conditions.push(`(${textMatch})`);
+    }
   }
   // fara type (sau "all" / valoare necunoscuta) => toate tipurile
   if (TYPES.includes(type)) {
@@ -67,19 +93,38 @@ const fetchTransactions = async (userId, filters = {}) => {
 
   const where = conditions.join(" AND ");
 
+  // Departajare la egalitate: mai multe tranzactii au aceeasi data (sau suma),
+  // iar fara un criteriu unic Postgres nu garanteaza ordinea intre cereri, deci
+  // la paginare unele randuri apareau de doua ori, altele deloc.
+  // created_at = cea adaugata ultima e prima; item_id (unic) = ordine stabila
+  const NEWEST_FIRST = "b.created_at DESC NULLS LAST, b.item_id DESC";
+  const OLDEST_FIRST = "b.created_at ASC NULLS LAST, b.item_id ASC";
   const orderBy =
     {
-      newest: "b.date DESC",
-      oldest: "b.date ASC",
-      highest: "b.amount DESC",
-      lowest: "b.amount ASC",
-    }[sort] ?? "b.date DESC";
+      newest: `b.date DESC, ${NEWEST_FIRST}`,
+      oldest: `b.date ASC, ${OLDEST_FIRST}`,
+      highest: `b.amount DESC, b.date DESC, ${NEWEST_FIRST}`,
+      lowest: `b.amount ASC, b.date ASC, ${OLDEST_FIRST}`,
+    }[sort] ?? `b.date DESC, ${NEWEST_FIRST}`;
+
+  return { where, values, orderBy, nextIndex: i };
+};
+
+const fetchTransactions = async (userId, filters = {}) => {
+  const page = toSafeInt(filters.page, 1);
+  const perPage = toSafeInt(filters.perPage, MAX_PER_PAGE, MAX_PER_PAGE);
+  const {
+    where,
+    values,
+    orderBy,
+    nextIndex: i,
+  } = buildTransactionFilters(userId, filters);
 
   const offset = (page - 1) * perPage;
 
   const listQuery = `
     SELECT b.item_id, b.type, b.amount, b.date, b.notes,
-           b.category_id, c.name AS category_name
+           b.category_id, c.name AS category_name, b.recurring_id
     FROM budget_items b
     LEFT JOIN categories c ON c.category_id = b.category_id
     WHERE ${where}
@@ -184,8 +229,42 @@ const deleteTransactionById = async (itemId, userId) => {
   return response.rowCount > 0;
 };
 
+// toate tranzactiile care respecta filtrele, fara paginare, pentru CSV
+// data ca YYYY-MM-DD (fara ora), ca sa nu se mute ziua din cauza fusului orar
+const fetchTransactionsForExport = async (userId, filters = {}) => {
+  const { where, values, orderBy, nextIndex } = buildTransactionFilters(
+    userId,
+    filters,
+  );
+  const response = await pool.query(
+    `SELECT to_char(b.date, 'YYYY-MM-DD') AS date, b.type, b.amount, b.notes,
+            c.name AS category_name
+     FROM budget_items b
+     LEFT JOIN categories c ON c.category_id = b.category_id
+     WHERE ${where}
+     ORDER BY ${orderBy}
+     LIMIT $${nextIndex}`,
+    [...values, MAX_EXPORT_ROWS],
+  );
+  return response.rows.map((r) => ({ ...r, amount: Number(r.amount) }));
+};
+
+// anii in care userul are cel putin o tranzactie, de la cel mai recent
+const fetchTransactionYears = async (userId) => {
+  const response = await pool.query(
+    `SELECT DISTINCT EXTRACT(YEAR FROM date)::int AS year
+     FROM budget_items
+     WHERE user_id = $1
+     ORDER BY year DESC`,
+    [userId],
+  );
+  return response.rows.map((row) => row.year);
+};
+
 export {
   fetchTransactions,
+  fetchTransactionsForExport,
+  fetchTransactionYears,
   fetchCategoryForUser,
   addNewTransaction,
   fetchTransactionById,

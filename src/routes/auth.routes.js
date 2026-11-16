@@ -8,6 +8,8 @@ import {
   updateUserInfo,
   getUserInfo,
   updateUserPassword,
+  resetData,
+  deleteAccount,
 } from "../controllers/auth.controller.js";
 import { validateToken } from "../utils/jwtHelperFn.js";
 import rateLimit from "../middleware/rateLimit.middleware.js";
@@ -39,5 +41,10 @@ authRouter.patch(
   rateLimit(5, 15),
   updateUserPassword,
 );
+
+// cer parola; limita mica, ca parola sa nu poata fi ghicita aici
+authRouter.delete("/data", validateToken, rateLimit(5, 15), resetData);
+
+authRouter.delete("/account", validateToken, rateLimit(5, 15), deleteAccount);
 
 export default authRouter;

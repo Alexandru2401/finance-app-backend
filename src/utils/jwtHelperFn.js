@@ -20,7 +20,9 @@ const validateToken = (req, res, next) => {
   const token = req.cookies.accessToken;
 
   if (!token) {
-    return res.status(401).json({ message: "No token was provided" });
+    return res
+      .status(401)
+      .json({ success: false, message: "No token was provided" });
   }
 
   try {
@@ -29,7 +31,9 @@ const validateToken = (req, res, next) => {
     next();
   } catch (err) {
     console.log(err);
-    return res.status(403).json({ message: "Invalid or expired token" });
+    return res
+      .status(403)
+      .json({ success: false, message: "Invalid or expired token" });
   }
 };
 export {

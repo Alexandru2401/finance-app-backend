@@ -1,10 +1,18 @@
 // valorile acceptate in ?period=
 // presetari, calculate in SQL relativ la CURRENT_DATE (luni calendaristice, luna curenta inclusa):
 //   this-month | last-month | last-3 | last-6 | last-12
+//   all = de la luna primei tranzactii a userului pana azi
 // sau interval custom, ambele capete incluse, acelasi format pe ambele parti:
 //   YYYY-MM:YYYY-MM          luni intregi (2026-01:2026-03 = 1 ian - 31 mar)
 //   YYYY-MM-DD:YYYY-MM-DD    zile (2026-01-15:2026-03-10)
-const PERIOD_PRESETS = ["this-month", "last-month", "last-3", "last-6", "last-12"];
+const PERIOD_PRESETS = [
+  "this-month",
+  "last-month",
+  "last-3",
+  "last-6",
+  "last-12",
+  "all",
+];
 
 // limita pt intervalul custom, ca un period de 1000 de ani sa nu genereze query-uri uriase
 const MAX_YEARS = 10;

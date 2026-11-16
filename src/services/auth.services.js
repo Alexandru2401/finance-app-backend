@@ -8,7 +8,7 @@ const insertUser = async (email, password, language) => {
     await client.query("BEGIN");
 
     const response = await client.query(
-      "INSERT INTO users (email, password, language) VALUES ($1, $2, $3) RETURNING user_id, username, email, plan_type, is_active, created_at, language, currency",
+      "INSERT INTO users (email, password, language) VALUES ($1, $2, $3) RETURNING user_id, username, email, plan_type, is_active, created_at, language, currency, has_completed_onboarding",
       [email, password, language],
     );
     const user = response.rows[0];
@@ -27,7 +27,7 @@ const insertUser = async (email, password, language) => {
 
 const fetchUserByEmail = async (email) => {
   const response = await pool.query(
-    "SELECT user_id, username, email, plan_type, is_active, created_at, language, currency, password FROM users WHERE email=$1",
+    "SELECT user_id, username, email, plan_type, is_active, created_at, language, currency, has_completed_onboarding, password FROM users WHERE email=$1",
     [email],
   );
 
@@ -66,7 +66,7 @@ const deleteRefreshToken = async (token) => {
 
 const fetchUserById = async (id) => {
   const response = await pool.query(
-    "SELECT user_id, email, username FROM users WHERE user_id=$1",
+    "SELECT user_id, email, username, has_completed_onboarding FROM users WHERE user_id=$1",
     [id],
   );
   return response.rows[0];
@@ -74,7 +74,7 @@ const fetchUserById = async (id) => {
 
 const fetchUserInfoById = async (id) => {
   const response = await pool.query(
-    "SELECT user_id, username, email, plan_type, is_active, created_at, language, currency FROM users WHERE user_id=$1",
+    "SELECT user_id, username, email, plan_type, is_active, created_at, language, currency, has_completed_onboarding FROM users WHERE user_id=$1",
     [id],
   );
   return response.rows[0];
@@ -82,9 +82,10 @@ const fetchUserInfoById = async (id) => {
 
 // la schimbarea monedei convertim si toate sumele userului, intr-o singura tranzactie
 // campurile sunt optionale: null/undefined pastreaza valoarea curenta
+// completeOnboarding = true marcheaza onboarding-ul terminat (nu se mai poate anula)
 const updateUserProfile = async (
   userId,
-  { username, currency: newCurrency, language },
+  { username, currency: newCurrency, language, completeOnboarding = false },
 ) => {
   const client = await pool.connect();
   try {
@@ -114,14 +115,42 @@ const updateUserProfile = async (
          WHERE user_id = $2`,
         [rate, userId],
       );
+      // regulile recurente, ca tranzactiile generate de acum sa fie in moneda noua
+      // minim 0.01: CHECK (amount > 0); o suma foarte mica nu ajunge 0.00 la conversie
+      await client.query(
+        `UPDATE recurring_items
+         SET amount = GREATEST(ROUND((amount * $1)::numeric, 2), 0.01),
+             updated_at = now()
+         WHERE user_id = $2`,
+        [rate, userId],
+      );
+      // notificarile pastreaza suma (nu textul), iar FE-ul o afiseaza in moneda
+      // curenta a userului, deci si ea se converteste
+      await client.query(
+        `UPDATE notifications
+         SET data = jsonb_set(
+           data, '{amount}',
+           to_jsonb(ROUND(((data->>'amount')::numeric * $1)::numeric, 2))
+         )
+         WHERE user_id = $2 AND jsonb_typeof(data->'amount') = 'number'`,
+        [rate, userId],
+      );
     }
 
     const response = await client.query(
       `UPDATE users SET username = COALESCE($1, username),
                          currency = COALESCE($2, currency),
-                         language = COALESCE($3, language)
-       WHERE user_id = $4 RETURNING user_id, username, currency, language`,
-      [username ?? null, newCurrency ?? null, language ?? null, userId],
+                         language = COALESCE($3, language),
+                         has_completed_onboarding = has_completed_onboarding OR $5
+       WHERE user_id = $4
+       RETURNING user_id, username, currency, language, has_completed_onboarding`,
+      [
+        username ?? null,
+        newCurrency ?? null,
+        language ?? null,
+        userId,
+        completeOnboarding,
+      ],
     );
 
     await client.query("COMMIT");
@@ -174,7 +203,60 @@ const updatePassword = async (userId, hashedPassword, keepToken) => {
   }
 };
 
+// toate datele userului, in ordinea in care tabelele depind unele de altele;
+// stergerile sunt explicite, nu depind de regulile ON DELETE din tabelele vechi
+const deleteUserData = async (client, userId) => {
+  for (const table of [
+    "notifications",
+    "budget_items", // inainte de recurring_items si categories (le refera)
+    "recurring_items", // inainte de categories
+    "budget_targets",
+    "categories",
+  ]) {
+    await client.query(`DELETE FROM ${table} WHERE user_id = $1`, [userId]);
+  }
+};
+
+// Reset Data: sterge tranzactiile, tintele, recurentele, notificarile si
+// categoriile, apoi pune la loc categoriile de pornire (ca la register), in
+// limba contului. Contul, setarile si sesiunile raman
+const resetUserData = async (userId, language) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await deleteUserData(client, userId);
+    await insertStarterCategories(client, userId, language);
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+// Delete Account: toate datele, sesiunile si userul, intr-o singura tranzactie
+const deleteUserAccount = async (userId) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await deleteUserData(client, userId);
+    await client.query("DELETE FROM refresh_tokens WHERE user_id = $1", [
+      userId,
+    ]);
+    await client.query("DELETE FROM users WHERE user_id = $1", [userId]);
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
 export {
+  resetUserData,
+  deleteUserAccount,
   fetchUserPasswordById,
   updatePassword,
   insertUser,

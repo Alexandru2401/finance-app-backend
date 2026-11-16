@@ -11,6 +11,8 @@ import transactionsRouter from "./routes/transactions.routes.js";
 import targetRouter from "./routes/target.routes.js";
 import errorMiddleware from "./middleware/error.middleware.js";
 import categoriesRouter from "./routes/categories.routes.js";
+import recurringRouter from "./routes/recurring.routes.js";
+import notificationsRouter from "./routes/notifications.routes.js";
 
 const app = express();
 
@@ -22,8 +24,16 @@ app.set("trust proxy", 1);
 const allowedOrigins = CLIENT_URL?.split(",").map((url) => url.trim()) ?? [];
 
 app.use(helmet());
-app.use(cors({ origin: allowedOrigins, credentials: true }));
-app.use(express.json());
+// RateLimit exposed so the frontend can show how long to wait after a 429
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+    exposedHeaders: ["RateLimit"],
+  }),
+);
+
+app.use(express.json({ limit: "10kb" }));
 app.use(cookieParser());
 app.use(morgan("dev"));
 
@@ -32,6 +42,8 @@ app.use(`${BASE_PATH}/budget`, budgetRouter);
 app.use(`${BASE_PATH}/transactions`, transactionsRouter);
 app.use(`${BASE_PATH}/target`, targetRouter);
 app.use(`${BASE_PATH}/categories`, categoriesRouter);
+app.use(`${BASE_PATH}/recurring`, recurringRouter);
+app.use(`${BASE_PATH}/notifications`, notificationsRouter);
 
 app.use(errorMiddleware);
 
