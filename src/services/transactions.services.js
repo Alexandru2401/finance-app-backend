@@ -14,6 +14,16 @@ const toSafeInt = (value, fallback, max = Infinity) => {
 // maxim de randuri intr-un export CSV (protectie impotriva raspunsurilor uriase)
 const MAX_EXPORT_ROWS = 10000;
 
+// textul cautat ca suma: "1200", "1.200", "1 200", "49,99", "49.99" -> numar; altfel null
+// separatorul de mii (. sau spatiu) se ignora; zecimalele (, sau .) au maxim 2 cifre
+const parseSearchAmount = (text) => {
+  const compact = text.replace(/\s/g, "");
+  const match = /^(\d{1,3}(?:\.\d{3})+|\d+)(?:[.,](\d{1,2}))?$/.exec(compact);
+  if (!match) return null;
+  const amount = Number(`${match[1].replace(/\./g, "")}.${match[2] ?? "0"}`);
+  return Number.isFinite(amount) && amount > 0 ? amount : null;
+};
+
 // WHERE + ORDER BY comune pentru lista paginata si pentru export
 const buildTransactionFilters = (userId, filters = {}) => {
   const {
@@ -34,13 +44,22 @@ const buildTransactionFilters = (userId, filters = {}) => {
 
   // cauta in numele categoriei si in notite (fara diferenta intre litere mari/mici);
   // \ % _ scrise de user se cauta ca text, nu ca wildcard-uri ILIKE
+  // daca textul e o suma ("1200", "1.200", "49,99"), gaseste si tranzactiile cu exact acea suma
   if (typeof search === "string" && search.trim() !== "") {
-    const escaped = search.trim().replace(/[\\%_]/g, (ch) => `\\${ch}`);
-    conditions.push(
-      `(c.name ILIKE $${i} ESCAPE '\\' OR b.notes ILIKE $${i} ESCAPE '\\')`,
-    );
+    const text = search.trim();
+    const escaped = text.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+    const textMatch = `c.name ILIKE $${i} ESCAPE '\\' OR b.notes ILIKE $${i} ESCAPE '\\'`;
     values.push(`%${escaped}%`);
     i++;
+
+    const amount = parseSearchAmount(text);
+    if (amount !== null) {
+      conditions.push(`(${textMatch} OR b.amount = $${i})`);
+      values.push(amount);
+      i++;
+    } else {
+      conditions.push(`(${textMatch})`);
+    }
   }
   // fara type (sau "all" / valoare necunoscuta) => toate tipurile
   if (TYPES.includes(type)) {
