@@ -17,7 +17,7 @@ const fetchRecurringItems = async (userId) => {
      FROM recurring_items r
      LEFT JOIN categories c ON c.category_id = r.category_id
      WHERE r.user_id = $1
-     ORDER BY r.is_active DESC, r.next_run ASC, r.created_at ASC`,
+     ORDER BY r.is_active DESC, r.next_run ASC, r.created_at ASC, r.id ASC`,
     [userId],
   );
   return response.rows.map(format);

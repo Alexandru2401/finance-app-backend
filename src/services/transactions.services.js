@@ -68,13 +68,19 @@ const buildTransactionFilters = (userId, filters = {}) => {
 
   const where = conditions.join(" AND ");
 
+  // Departajare la egalitate: mai multe tranzactii au aceeasi data (sau suma),
+  // iar fara un criteriu unic Postgres nu garanteaza ordinea intre cereri, deci
+  // la paginare unele randuri apareau de doua ori, altele deloc.
+  // created_at = cea adaugata ultima e prima; item_id (unic) = ordine stabila
+  const NEWEST_FIRST = "b.created_at DESC NULLS LAST, b.item_id DESC";
+  const OLDEST_FIRST = "b.created_at ASC NULLS LAST, b.item_id ASC";
   const orderBy =
     {
-      newest: "b.date DESC",
-      oldest: "b.date ASC",
-      highest: "b.amount DESC",
-      lowest: "b.amount ASC",
-    }[sort] ?? "b.date DESC";
+      newest: `b.date DESC, ${NEWEST_FIRST}`,
+      oldest: `b.date ASC, ${OLDEST_FIRST}`,
+      highest: `b.amount DESC, b.date DESC, ${NEWEST_FIRST}`,
+      lowest: `b.amount ASC, b.date ASC, ${OLDEST_FIRST}`,
+    }[sort] ?? `b.date DESC, ${NEWEST_FIRST}`;
 
   return { where, values, orderBy, nextIndex: i };
 };

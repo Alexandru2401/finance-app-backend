@@ -91,6 +91,7 @@ const fetchTargetSummary = async (userId, period) => {
 };
 
 // top N cele mai mari cheltuieli din period
+//  la sume egale: cea mai recenta, apoi item_id, ca LIMIT sa aleaga mereu aceleasi
 const fetchTopExpenses = async (userId, limit, period) => {
   const range = resolveRange(period, 3);
   const response = await pool.query(
@@ -100,7 +101,7 @@ const fetchTopExpenses = async (userId, limit, period) => {
      LEFT JOIN categories c ON c.category_id = b.category_id
      WHERE b.user_id = $1 AND b.type = 'expense'
        AND ${rangeCondition(range, "b.date")}
-     ORDER BY b.amount DESC
+     ORDER BY b.amount DESC, b.date DESC, b.created_at DESC NULLS LAST, b.item_id DESC
      LIMIT $2`,
     [userId, limit, ...range.values],
   );
@@ -144,7 +145,7 @@ const fetchByCategory = async (userId, type, period) => {
      WHERE b.user_id = $1 AND b.type = $2
        AND ${rangeCondition(range, "b.date")}
      GROUP BY b.category_id, c.name
-     ORDER BY total DESC`,
+     ORDER BY total DESC, c.name ASC NULLS LAST`,
     [userId, type, ...range.values],
   );
   return response.rows;
