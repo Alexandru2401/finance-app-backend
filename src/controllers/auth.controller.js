@@ -208,17 +208,18 @@ const login = async (req, res, next) => {
 
 const updateUserInfo = async (req, res, next) => {
   try {
-    const { username, currency, language, completeOnboarding } =
+    const { username, currency, language, completeOnboarding, completeTour } =
       req.body ?? {};
 
     if (
       username === undefined &&
       currency === undefined &&
       language === undefined &&
-      completeOnboarding === undefined
+      completeOnboarding === undefined &&
+      completeTour === undefined
     ) {
       const error = new Error(
-        "Provide at least one field to update: username, currency, language, completeOnboarding",
+        "Provide at least one field to update: username, currency, language, completeOnboarding, completeTour",
       );
       error.status = 400;
       throw error;
@@ -238,6 +239,13 @@ const updateUserInfo = async (req, res, next) => {
         error.status = 400;
         throw error;
       }
+    }
+
+    // turul ghidat terminat sau sarit; ca la onboarding, doar true
+    if (completeTour !== undefined && completeTour !== true) {
+      const error = new Error("completeTour can only be true");
+      error.status = 400;
+      throw error;
     }
 
     // optional; lipsa = ramane numele curent
@@ -277,6 +285,7 @@ const updateUserInfo = async (req, res, next) => {
       currency,
       language,
       completeOnboarding: completeOnboarding === true,
+      completeTour: completeTour === true,
     });
 
     res.status(200).json({ success: true, user: updatedUser });

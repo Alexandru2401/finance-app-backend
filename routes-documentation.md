@@ -137,10 +137,14 @@ Fără body. Răspunsul e același și dacă nu există o sesiune activă (logou
     "is_active": true,
     "created_at": "2026-10-30T04:20:54.505Z",
     "language": "ro",
-    "currency": "RON"
+    "currency": "RON",
+    "has_completed_onboarding": true,
+    "has_completed_tour": false
   }
 }
 ```
+
+`has_completed_tour` e `false` până când userul termină sau sare turul ghidat din Overview.
 
 ---
 
@@ -157,6 +161,8 @@ Fără body. Răspunsul e același și dacă nu există o sesiune activă (logou
   "language": "ro"
 }
 ```
+
+`"completeTour": true` (singur sau cu alte câmpuri) marchează turul ghidat ca terminat; alte valori decât `true` dau `400`. Nu se poate anula.
 
 **Response** `200 OK`
 
