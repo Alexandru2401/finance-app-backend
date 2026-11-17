@@ -1,3 +1,4 @@
+import { TYPES } from "../utils/types.js";
 import validators from "../validators/inputValidators.js";
 import { fetchCategoryForUser } from "../services/transactions.services.js";
 import {
@@ -20,7 +21,6 @@ const categoryTaken = (res) =>
 // doua cereri simultane: indexul UNIQUE din db o prinde pe a doua
 const isUniqueViolation = (err) => err?.code === "23505";
 
-const TYPES = ["income", "expense", "savings"];
 
 // limita de reguli per user (security.md 1.8)
 const MAX_RECURRING_PER_USER = 50;
@@ -115,7 +115,7 @@ const createRecurringItem = async (req, res, next) => {
     if (!TYPES.includes(type)) {
       return badRequest(
         res,
-        "Invalid type. Must be one of: income, expense, savings",
+        "Invalid type. Must be one of: income, expenses, savings",
       );
     }
 
@@ -222,7 +222,7 @@ const updateRecurringItemById = async (req, res, next) => {
     if (type !== undefined && !TYPES.includes(type)) {
       return badRequest(
         res,
-        "Invalid type. Must be one of: income, expense, savings",
+        "Invalid type. Must be one of: income, expenses, savings",
       );
     }
 

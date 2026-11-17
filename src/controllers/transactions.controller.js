@@ -1,3 +1,4 @@
+import { TYPES } from "../utils/types.js";
 import validators from "../validators/inputValidators.js";
 import {
   fetchTransactions,
@@ -77,12 +78,12 @@ const getTransactions = async (req, res, next) => {
 const CSV_LABELS = {
   ro: {
     header: ["Data", "Tip", "Categorie", "Sumă", "Notițe"],
-    types: { income: "Venit", expense: "Cheltuială", savings: "Economie" },
+    types: { income: "Venit", expenses: "Cheltuială", savings: "Economie" },
     uncategorized: "Fără categorie",
   },
   en: {
     header: ["Date", "Type", "Category", "Amount", "Notes"],
-    types: { income: "Income", expense: "Expense", savings: "Savings" },
+    types: { income: "Income", expenses: "Expense", savings: "Savings" },
     uncategorized: "Uncategorized",
   },
 };
@@ -148,7 +149,6 @@ const getTransactionYears = async (req, res, next) => {
   }
 };
 
-const TYPE = ["income", "expense", "savings"];
 
 const { isValidDate } = validators;
 
@@ -164,10 +164,10 @@ const addTransaction = async (req, res, next) => {
       });
     }
 
-    if (!TYPE.includes(type)) {
+    if (!TYPES.includes(type)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid type. Must be one of: income, expense, savings",
+        message: "Invalid type. Must be one of: income, expenses, savings",
       });
     }
 
@@ -257,10 +257,10 @@ const updateTransaction = async (req, res, next) => {
       });
     }
 
-    if (type !== undefined && !TYPE.includes(type)) {
+    if (type !== undefined && !TYPES.includes(type)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid type. Must be one of: income, expense, savings",
+        message: "Invalid type. Must be one of: income, expenses, savings",
       });
     }
 

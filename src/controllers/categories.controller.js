@@ -1,3 +1,4 @@
+import { TYPES } from "../utils/types.js";
 import validators from "../validators/inputValidators.js";
 import {
   fetchAllCategories,
@@ -21,7 +22,6 @@ const getAllCategories = async (req, res, next) => {
   }
 };
 
-const TYPES = ["income", "expense", "savings"];
 
 // POST /categories  body: { type, name }
 const createNewCategory = async (req, res, next) => {
@@ -31,7 +31,7 @@ const createNewCategory = async (req, res, next) => {
     if (!TYPES.includes(type)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid type. Must be one of: income, expense, savings",
+        message: "Invalid type. Must be one of: income, expenses, savings",
       });
     }
 

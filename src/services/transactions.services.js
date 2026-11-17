@@ -1,8 +1,8 @@
+import { TYPES } from "../utils/types.js";
 import pool from "../db/db.js";
 
 // ?limit= poate cere mai putine, dar niciodata mai mult de 15 pe pagina
 const MAX_PER_PAGE = 15;
-const TYPES = ["income", "expense", "savings"];
 
 // intreg pozitiv valid, altfel fallback (evita NaN/negative ajunse in LIMIT/OFFSET)
 const toSafeInt = (value, fallback, max = Infinity) => {
@@ -28,7 +28,7 @@ const parseSearchAmount = (text) => {
 const buildTransactionFilters = (userId, filters = {}) => {
   const {
     search,
-    type, // 'income' | 'expense' | 'savings'
+    type, // 'income' | 'expenses' | 'savings'
     categoryId,
     year,
     month,
@@ -138,7 +138,7 @@ const fetchTransactions = async (userId, filters = {}) => {
   const totalsQuery = `
     SELECT COUNT(*) AS count,
            COALESCE(SUM(CASE WHEN b.type = 'income' THEN b.amount
-                             WHEN b.type = 'expense' THEN -b.amount
+                             WHEN b.type = 'expenses' THEN -b.amount
                              ELSE 0 END), 0) AS net
     FROM budget_items b
     LEFT JOIN categories c ON c.category_id = b.category_id

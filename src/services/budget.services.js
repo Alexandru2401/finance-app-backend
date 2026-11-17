@@ -99,7 +99,7 @@ const fetchTopExpenses = async (userId, limit, period) => {
             b.amount, b.date, b.notes, b.created_at
      FROM budget_items b
      LEFT JOIN categories c ON c.category_id = b.category_id
-     WHERE b.user_id = $1 AND b.type = 'expense'
+     WHERE b.user_id = $1 AND b.type = 'expenses'
        AND ${rangeCondition(range, "b.date")}
      ORDER BY b.amount DESC, b.date DESC, b.created_at DESC NULLS LAST, b.item_id DESC
      LIMIT $2`,
@@ -121,7 +121,7 @@ const fetchBudgetTrend = async (userId, period) => {
      )
      SELECT to_char(m.month, 'YYYY-MM') AS month,
             COALESCE(SUM(b.amount) FILTER (WHERE b.type = 'income'), 0) AS income,
-            COALESCE(SUM(b.amount) FILTER (WHERE b.type = 'expense'), 0) AS expense,
+            COALESCE(SUM(b.amount) FILTER (WHERE b.type = 'expenses'), 0) AS expense,
             COALESCE(SUM(b.amount) FILTER (WHERE b.type = 'savings'), 0) AS savings
      FROM months m
      LEFT JOIN budget_items b
@@ -158,7 +158,7 @@ const fetchHealthTotals = async (userId, today) => {
   const response = await pool.query(
     `SELECT to_char(date_trunc('month', date::timestamp), 'YYYY-MM') AS month,
             COALESCE(SUM(amount) FILTER (WHERE type = 'income'), 0)  AS income,
-            COALESCE(SUM(amount) FILTER (WHERE type = 'expense'), 0) AS expense,
+            COALESCE(SUM(amount) FILTER (WHERE type = 'expenses'), 0) AS expense,
             COALESCE(SUM(amount) FILTER (WHERE type = 'savings'), 0) AS savings,
             COUNT(*)::int AS count
      FROM budget_items

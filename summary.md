@@ -31,7 +31,7 @@ Query-uri și cod
 Query 1: sumele reale pe lună, din budget_items. FILTER adună separat pe fiecare tip, iar COALESCE pune 0 când nu există niciun item.
 SELECT
   COALESCE(SUM(amount) FILTER (WHERE type = 'income'), 0)  AS income,
-  COALESCE(SUM(amount) FILTER (WHERE type = 'expense'), 0) AS expense,
+  COALESCE(SUM(amount) FILTER (WHERE type = 'expenses'), 0) AS expense,
   COALESCE(SUM(amount) FILTER (WHERE type = 'savings'), 0) AS savings
 FROM budget_items
 WHERE user_id = '11111111-1111-1111-1111-111111111111'

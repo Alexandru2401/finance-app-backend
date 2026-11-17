@@ -77,7 +77,7 @@ const fetchTargetHistory = async (userId) => {
     `SELECT to_char(t.month, 'YYYY-MM') AS month,
             t.income, t.expense, t.savings,
             COALESCE(SUM(b.amount) FILTER (WHERE b.type = 'income'), 0)  AS actual_income,
-            COALESCE(SUM(b.amount) FILTER (WHERE b.type = 'expense'), 0) AS actual_expense,
+            COALESCE(SUM(b.amount) FILTER (WHERE b.type = 'expenses'), 0) AS actual_expense,
             COALESCE(SUM(b.amount) FILTER (WHERE b.type = 'savings'), 0) AS actual_savings
      FROM budget_targets t
      LEFT JOIN budget_items b
