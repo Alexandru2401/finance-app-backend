@@ -139,12 +139,12 @@ Fără body. Răspunsul e același și dacă nu există o sesiune activă (logou
     "language": "ro",
     "currency": "RON",
     "has_completed_onboarding": true,
-    "has_completed_tour": false
+    "completed_tours": ["overview"]
   }
 }
 ```
 
-`has_completed_tour` e `false` până când userul termină sau sare turul ghidat din Overview.
+`completed_tours` are paginile (`overview`, `budget`, `transactions`, `analytics`, `settings`) al căror tur ghidat userul l-a terminat sau sărit.
 
 ---
 
@@ -162,7 +162,7 @@ Fără body. Răspunsul e același și dacă nu există o sesiune activă (logou
 }
 ```
 
-`"completeTour": true` (singur sau cu alte câmpuri) marchează turul ghidat ca terminat; alte valori decât `true` dau `400`. Nu se poate anula.
+`"completeTour": "budget"` (singur sau cu alte câmpuri) adaugă pagina în `completed_tours`, o singură dată; alte valori decât paginile de mai sus dau `400`. Nu se poate anula.
 
 **Response** `200 OK`
 

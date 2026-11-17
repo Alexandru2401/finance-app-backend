@@ -22,6 +22,14 @@ import {
 } from "../utils/jwtHelperFn.js";
 
 const ALLOWED_LANGUAGES = ["ro", "en"];
+// paginile din dashboard care au tur ghidat
+const ALLOWED_TOURS = [
+  "overview",
+  "budget",
+  "transactions",
+  "analytics",
+  "settings",
+];
 
 const register = async (req, res, next) => {
   try {
@@ -241,9 +249,11 @@ const updateUserInfo = async (req, res, next) => {
       }
     }
 
-    // turul ghidat terminat sau sarit; ca la onboarding, doar true
-    if (completeTour !== undefined && completeTour !== true) {
-      const error = new Error("completeTour can only be true");
+    // turul ghidat al unei pagini, terminat sau sarit
+    if (completeTour !== undefined && !ALLOWED_TOURS.includes(completeTour)) {
+      const error = new Error(
+        `completeTour must be one of: ${ALLOWED_TOURS.join(", ")}`,
+      );
       error.status = 400;
       throw error;
     }
@@ -285,7 +295,7 @@ const updateUserInfo = async (req, res, next) => {
       currency,
       language,
       completeOnboarding: completeOnboarding === true,
-      completeTour: completeTour === true,
+      completeTour: completeTour ?? null,
     });
 
     res.status(200).json({ success: true, user: updatedUser });
