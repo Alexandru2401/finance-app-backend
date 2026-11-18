@@ -25,7 +25,7 @@ const formatTarget = (row) => {
     income,
     expense,
     savings,
-    netBalance: targetNet(income, expense),
+    net: targetNet(income, expense), // acelasi nume ca la /budget/summary
   };
 };
 

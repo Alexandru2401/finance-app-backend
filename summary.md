@@ -8,7 +8,7 @@ FE-ul face un singur request, GET /budget/summary?month=YYYY-MM. BE-ul rulează 
 • Sumele reale vin din budget_items: suma pe income / expense / savings pentru intervalul cerut.
 • Target-ul vine din budget_targets: pentru fiecare lună din interval, cel mai recent rând cu month <= luna respectivă (carry-over). Un target setat într-o lună rămâne valabil până îl schimbi. La un interval de mai multe luni (last-3, this-year), target-urile lunilor se adună.
 • Procentul se calculează pe BE: real / target * 100, rotunjit la 2 zecimale.
-• net = income - expense (economiile nu se scad), la sumele reale, la target și la netBalance din /target.
+• net = income - expense (economiile nu se scad), la sumele reale, la target și la net din /target.
 • Target-ul se setează din GET / POST /target (vezi mai jos), separat de summary.
 • Pe FE, un singur useQuery cu queryKey: ["summary", month]. Toate cardurile citesc din el și se actualizează când se schimbă luna.
 De făcut acasă
@@ -88,7 +88,7 @@ Exemplu de răspuns pentru GET /target?month=2026-11 (fără target propriu în 
   "success": true,
   "target": {
     "id": null, "month": "2026-11-01", "inheritedFrom": "2026-10-01",
-    "income": 2000, "expense": 500, "savings": 500, "netBalance": 1500
+    "income": 2000, "expense": 500, "savings": 500, "net": 1500
   }
 }
 Cazuri limită

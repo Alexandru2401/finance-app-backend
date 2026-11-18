@@ -105,7 +105,7 @@ const fetchTopExpenses = async (userId, limit, period) => {
      LIMIT $2`,
     [userId, limit, ...range.values],
   );
-  return response.rows;
+  return response.rows.map((r) => ({ ...r, amount: Number(r.amount) }));
 };
 
 // income, expense si savings pe luni, cate un punct pt fiecare luna din period (pt grafice)

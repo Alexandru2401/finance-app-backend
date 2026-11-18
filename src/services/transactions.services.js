@@ -174,7 +174,8 @@ const addNewTransaction = async (userId, transaction) => {
   const response = await pool.query(
     `INSERT INTO budget_items (user_id, type, category_id, amount, date, notes)
      VALUES ($1, $2, $3, $4, $5, $6)
-     RETURNING item_id, type, category_id, amount, date, notes, created_at`,
+     RETURNING item_id, type, category_id, amount, date, notes, recurring_id,
+               created_at`,
     [
       userId,
       transaction.type,
@@ -203,9 +204,11 @@ const fetchTransactionById = async (itemId, userId) => {
 const updateTransactionById = async (itemId, userId, transaction) => {
   const response = await pool.query(
     `UPDATE budget_items
-     SET type = $1, category_id = $2, amount = $3, date = $4, notes = $5
+     SET type = $1, category_id = $2, amount = $3, date = $4, notes = $5,
+         updated_at = now()
      WHERE item_id = $6 AND user_id = $7
-     RETURNING item_id, type, category_id, amount, date, notes, created_at`,
+     RETURNING item_id, type, category_id, amount, date, notes, recurring_id,
+               created_at, updated_at`,
     [
       transaction.type,
       transaction.categoryId,
@@ -238,7 +241,7 @@ const fetchTransactionsForExport = async (userId, filters = {}) => {
   );
   const response = await pool.query(
     `SELECT to_char(b.date, 'YYYY-MM-DD') AS date, b.type, b.amount, b.notes,
-            c.name AS category_name
+            b.recurring_id, c.name AS category_name
      FROM budget_items b
      LEFT JOIN categories c ON c.category_id = b.category_id
      WHERE ${where}

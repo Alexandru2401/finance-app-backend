@@ -1,5 +1,5 @@
 import { TYPES } from "../utils/types.js";
-import validators from "../validators/inputValidators.js";
+import validators, { NOTES_MAX_LENGTH } from "../validators/inputValidators.js";
 import { fetchCategoryForUser } from "../services/transactions.services.js";
 import {
   fetchRecurringItems,
@@ -24,9 +24,6 @@ const isUniqueViolation = (err) => err?.code === "23505";
 
 // limita de reguli per user (security.md 1.8)
 const MAX_RECURRING_PER_USER = 50;
-
-// la fel ca in formularul din FE si ca CHECK-ul din DB
-const NOTES_MAX_LENGTH = 1500;
 
 const INVALID_AMOUNT =
   "Amount must be greater than 0, with at most 2 decimals and at most 9999999999.99";

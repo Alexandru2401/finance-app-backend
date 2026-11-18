@@ -52,7 +52,7 @@ const register = async (req, res, next) => {
       validators.isValidEmail,
     );
     if (!validators.isValidPassword(password)) {
-      const error = new Error("Password must be between 8 and 72 characters");
+      const error = new Error("Password must be at least 8 characters and at most 72 characters");
       error.status = 400;
       throw error;
     }
@@ -146,7 +146,7 @@ const login = async (req, res, next) => {
       validators.isValidEmail,
     );
     if (!validators.isValidPassword(password)) {
-      const error = new Error("Password must be between 8 and 72 characters");
+      const error = new Error("Password must be at least 8 characters and at most 72 bytes");
       error.status = 400;
       throw error;
     }
@@ -429,7 +429,7 @@ const updateUserPassword = async (req, res, next) => {
     }
 
     if (!validators.isValidPassword(newPassword)) {
-      const error = new Error("Password must be between 8 and 72 characters");
+      const error = new Error("Password must be at least 8 characters and at most 72 bytes");
       error.status = 400;
       throw error;
     }
