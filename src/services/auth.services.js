@@ -57,13 +57,60 @@ const insertRefreshToken = async (userId, refreshToken, expires_at) => {
   return response.rows[0];
 };
 
+// cat timp un token inlocuit (rotit) mai e acceptat: doua tab-uri care fac
+// /auth/refresh in acelasi timp trimit acelasi cookie
+const ROTATION_GRACE_SECONDS = 30;
+
 // refresh token-ul doar daca exista in db si nu a expirat (logout il sterge)
+// reused = token deja inlocuit, folosit din nou dupa perioada de gratie
 const fetchRefreshToken = async (token) => {
   const response = await pool.query(
-    "SELECT user_id FROM refresh_tokens WHERE token = $1 AND expires_at > NOW()",
-    [hashToken(token)],
+    `SELECT user_id,
+            revoked_at IS NOT NULL
+              AND revoked_at < NOW() - make_interval(secs => $2) AS reused
+     FROM refresh_tokens
+     WHERE token = $1 AND expires_at > NOW()`,
+    [hashToken(token), ROTATION_GRACE_SECONDS],
   );
   return response.rows[0];
+};
+
+// rotatie: token-ul vechi e marcat ca inlocuit (ramane in db ca sa se poata
+// detecta reutilizarea) si se salveaza cel nou, intr-o singura tranzactie
+const rotateRefreshToken = async (oldToken, userId, newToken, expiresAt) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "UPDATE refresh_tokens SET revoked_at = NOW() WHERE token = $1 AND revoked_at IS NULL",
+      [hashToken(oldToken)],
+    );
+    await client.query(
+      "INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)",
+      [userId, hashToken(newToken), expiresAt],
+    );
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+// reutilizarea unui token inlocuit inseamna ca token-ul a fost furat:
+// toate sesiunile userului sunt inchise
+const deleteUserRefreshTokens = async (userId) => {
+  await pool.query("DELETE FROM refresh_tokens WHERE user_id = $1", [userId]);
+};
+
+// false si cand userul nu mai exista (cont sters)
+const isUserActive = async (userId) => {
+  const response = await pool.query(
+    "SELECT is_active FROM users WHERE user_id = $1",
+    [userId],
+  );
+  return response.rows[0]?.is_active === true;
 };
 
 const deleteRefreshToken = async (token) => {
@@ -285,7 +332,10 @@ export {
   fetchUserByUsername,
   insertRefreshToken,
   fetchRefreshToken,
+  rotateRefreshToken,
   deleteRefreshToken,
+  deleteUserRefreshTokens,
+  isUserActive,
   fetchUserById,
   fetchUserInfoById,
   updateUserProfile,
