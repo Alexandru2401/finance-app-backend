@@ -177,7 +177,47 @@ const fetchHealthTotals = async (userId, today) => {
   }));
 };
 
+// costurile fixe: regulile recurente active de cheltuieli (suma adaugata lunar),
+// cea mai mare prima; nu depind de period
+const fetchFixedCosts = async (userId) => {
+  const response = await pool.query(
+    `SELECT r.id AS recurring_id, r.category_id, c.name AS category, r.amount
+     FROM recurring_items r
+     LEFT JOIN categories c ON c.category_id = r.category_id
+     WHERE r.user_id = $1 AND r.is_active AND r.type = 'expenses'
+     ORDER BY r.amount DESC, c.name ASC NULLS LAST, r.id ASC`,
+    [userId],
+  );
+  return response.rows.map((row) => ({ ...row, amount: Number(row.amount) }));
+};
+
+// costurile variabile: cheltuielile din period pe categorii, fara categoriile
+// cu regula recurenta activa (acelea sunt costurile fixe); cele mai mari `limit`
+// tranzactiile fara categorie (categoria stearsa) intra impreuna, cu category_id null
+const fetchVariableCosts = async (userId, limit, period) => {
+  const range = resolveRange(period, 3);
+  const response = await pool.query(
+    `SELECT b.category_id, c.name AS category, SUM(b.amount) AS amount
+     FROM budget_items b
+     LEFT JOIN categories c ON c.category_id = b.category_id
+     WHERE b.user_id = $1 AND b.type = 'expenses'
+       AND ${rangeCondition(range, "b.date")}
+       AND NOT EXISTS (
+         SELECT 1 FROM recurring_items r
+         WHERE r.user_id = $1 AND r.is_active AND r.type = 'expenses'
+           AND r.category_id = b.category_id
+       )
+     GROUP BY b.category_id, c.name
+     ORDER BY amount DESC, c.name ASC NULLS LAST
+     LIMIT $2`,
+    [userId, limit, ...range.values],
+  );
+  return response.rows.map((row) => ({ ...row, amount: Number(row.amount) }));
+};
+
 export {
+  fetchFixedCosts,
+  fetchVariableCosts,
   fetchHealthTotals,
   fetchByCategory,
   fetchBudgetSummary,
