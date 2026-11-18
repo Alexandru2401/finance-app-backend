@@ -138,7 +138,6 @@ const getTransactions = async (req, res, next) => {
       totalPages,
     });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -205,7 +204,6 @@ const exportTransactions = async (req, res, next) => {
     );
     res.status(200).send(`${BOM}${lines.join("\r\n")}\r\n`);
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -217,7 +215,6 @@ const getTransactionYears = async (req, res, next) => {
     const years = await fetchTransactionYears(req.user.user_id);
     res.status(200).json({ success: true, years });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -299,7 +296,6 @@ const addTransaction = async (req, res, next) => {
       transaction: { ...transaction, category_name: category.name },
     });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -423,7 +419,6 @@ const updateTransaction = async (req, res, next) => {
       transaction: { ...transaction, category_name: category?.name ?? null },
     });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -449,7 +444,6 @@ const deleteTransaction = async (req, res, next) => {
 
     res.status(204).end();
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };

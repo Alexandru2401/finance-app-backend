@@ -16,7 +16,7 @@ const getRatesToRon = async () => {
     const res = await fetch(BNR_URL);
     if (!res.ok) throw new Error(`BNR responded with ${res.status}`);
     xml = await res.text();
-  } catch (err) {
+  } catch {
     // daca BNR nu raspunde dar avem un curs mai vechi, il folosim pe ala
     if (cache.rates) return cache.rates;
     const error = new Error("Exchange rates are unavailable, try again later");

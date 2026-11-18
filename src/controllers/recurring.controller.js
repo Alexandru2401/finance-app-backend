@@ -92,7 +92,6 @@ const getRecurringItems = async (req, res, next) => {
     const recurring = await fetchRecurringItems(req.user.user_id);
     res.status(200).json({ success: true, recurring });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -199,7 +198,6 @@ const createRecurringItem = async (req, res, next) => {
     });
   } catch (err) {
     if (isUniqueViolation(err)) return categoryTaken(res);
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -306,7 +304,6 @@ const updateRecurringItemById = async (req, res, next) => {
     res.status(200).json({ success: true, recurring });
   } catch (err) {
     if (isUniqueViolation(err)) return categoryTaken(res);
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -321,7 +318,6 @@ const deleteRecurringItemById = async (req, res, next) => {
 
     res.status(204).end();
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };

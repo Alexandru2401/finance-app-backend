@@ -42,7 +42,6 @@ const getNotifications = async (req, res, next) => {
       totalPages: Math.ceil(total / perPage),
     });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -53,7 +52,6 @@ const getUnreadCount = async (req, res, next) => {
     const count = await countUnreadNotifications(req.user.user_id);
     res.status(200).json({ success: true, count });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -69,7 +67,6 @@ const readNotification = async (req, res, next) => {
 
     res.status(204).end();
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -80,7 +77,6 @@ const readAllNotifications = async (req, res, next) => {
     await markAllNotificationsRead(req.user.user_id);
     res.status(204).end();
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -95,7 +91,6 @@ const removeNotification = async (req, res, next) => {
 
     res.status(204).end();
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };

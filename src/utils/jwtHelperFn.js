@@ -40,8 +40,7 @@ const validateToken = async (req, res, next) => {
   let decoded;
   try {
     decoded = jwt.verify(token, JWT_SECRET, { algorithms: [ALGORITHM] });
-  } catch (err) {
-    console.log(err);
+  } catch {
     return res
       .status(403)
       .json({ success: false, message: "Invalid or expired token" });

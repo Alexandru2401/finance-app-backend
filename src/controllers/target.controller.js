@@ -44,7 +44,6 @@ const getTarget = async (req, res, next) => {
 
     res.status(200).json({ success: true, target: formatTarget(row) });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -56,7 +55,6 @@ const getAllTargets = async (req, res, next) => {
 
     res.status(200).json({ success: true, targets: rows.map(formatTarget) });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -109,7 +107,6 @@ const saveTarget = async (req, res, next) => {
       .status(row.inserted ? 201 : 200)
       .json({ success: true, target: formatTarget(row) });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -197,7 +194,6 @@ const exportTargetHistory = async (req, res, next) => {
     // BOM: Excel afiseaza corect diacriticele
     res.status(200).send(`${BOM}${lines.join("\r\n")}\r\n`);
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };

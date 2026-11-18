@@ -132,7 +132,6 @@ const register = async (req, res, next) => {
       user: newUser,
     });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -216,7 +215,6 @@ const login = async (req, res, next) => {
       user: foundedUser,
     });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -307,7 +305,6 @@ const updateUserInfo = async (req, res, next) => {
 
     res.status(200).json({ success: true, user: updatedUser });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -326,7 +323,6 @@ const logout = async (req, res, next) => {
     // 204 si cand nu exista sesiune: logout-ul e idempotent
     return res.status(204).end();
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -405,7 +401,6 @@ const refresh = async (req, res, next) => {
 
     res.status(200).json({ success: true, message: "Token refreshed" });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -478,7 +473,6 @@ const updateUserPassword = async (req, res, next) => {
 
     res.status(204).end();
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -521,7 +515,6 @@ const resetData = async (req, res, next) => {
 
     res.status(204).end();
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -540,7 +533,6 @@ const deleteAccount = async (req, res, next) => {
 
     res.status(204).end();
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };

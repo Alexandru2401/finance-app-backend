@@ -66,7 +66,6 @@ const getBudgetSummary = async (req, res, next) => {
 
     res.status(200).json({ success: true, summary });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -80,7 +79,6 @@ const getTopSpending = async (req, res, next) => {
     const topExpenses = await fetchTopExpenses(req.user.user_id, 5, period);
     res.status(200).json({ success: true, topExpenses });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -102,7 +100,6 @@ const getBudgetTrend = async (req, res, next) => {
 
     res.status(200).json({ success: true, trend });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -131,7 +128,6 @@ const getByCategory = async (req, res, next) => {
 
     res.status(200).json({ success: true, categories });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -190,7 +186,6 @@ const getBudgetHealth = async (req, res, next) => {
       health: { ...health, month: current, day },
     });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -216,7 +211,6 @@ const getBudgetCosts = async (req, res, next) => {
       costs: { fixed: withShares(fixed), variable: withShares(variable) },
     });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -250,7 +244,6 @@ const getBudgetForecast = async (req, res, next) => {
       forecast: savingsForecast(trend, ahead),
     });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };

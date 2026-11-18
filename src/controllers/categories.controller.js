@@ -29,7 +29,6 @@ const getAllCategories = async (req, res, next) => {
     );
     res.status(200).json({ success: true, categories });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -82,7 +81,6 @@ const createNewCategory = async (req, res, next) => {
         .status(409)
         .json({ success: false, message: "Category already exists" });
     }
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -147,7 +145,6 @@ const updateCategory = async (req, res, next) => {
         .status(409)
         .json({ success: false, message: "Category already exists" });
     }
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -172,7 +169,6 @@ const deleteCategory = async (req, res, next) => {
 
     return res.status(200).json({ success: true, category: deleted });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
