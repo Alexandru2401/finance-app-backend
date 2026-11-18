@@ -1,4 +1,5 @@
-import validators from "../validators/inputValidators.js";
+import { TYPES } from "../utils/types.js";
+import validators, { NOTES_MAX_LENGTH } from "../validators/inputValidators.js";
 import {
   fetchTransactions,
   fetchTransactionsForExport,
@@ -39,7 +40,7 @@ const parseFilters = (query) => {
   };
 };
 
-// GET /transactions  (?type=expense&category_id=..&year=..&month=..&day=..&minAmount=..&maxAmount=..&search=..&sort=newest&page=1&limit=15)
+// GET /transactions  (?type=expenses&category_id=..&year=..&month=..&day=..&minAmount=..&maxAmount=..&search=..&sort=newest&page=1&limit=15)
 // limit implicit si maxim 15
 const getTransactions = async (req, res, next) => {
   try {
@@ -76,14 +77,16 @@ const getTransactions = async (req, res, next) => {
 // ---- CSV ----
 const CSV_LABELS = {
   ro: {
-    header: ["Data", "Tip", "Categorie", "Sumă", "Notițe"],
-    types: { income: "Venit", expense: "Cheltuială", savings: "Economie" },
+    header: ["Data", "Tip", "Categorie", "Sumă", "Notițe", "Recurentă"],
+    types: { income: "Venit", expenses: "Cheltuială", savings: "Economie" },
     uncategorized: "Fără categorie",
+    recurring: { yes: "Da", no: "Nu" },
   },
   en: {
-    header: ["Date", "Type", "Category", "Amount", "Notes"],
-    types: { income: "Income", expense: "Expense", savings: "Savings" },
+    header: ["Date", "Type", "Category", "Amount", "Notes", "Recurring"],
+    types: { income: "Income", expenses: "Expense", savings: "Savings" },
     uncategorized: "Uncategorized",
+    recurring: { yes: "Yes", no: "No" },
   },
 };
 
@@ -119,6 +122,8 @@ const exportTransactions = async (req, res, next) => {
           csvCell(r.category_name ?? labels.uncategorized, { userText: true }),
           csvCell(r.amount.toFixed(2)),
           csvCell(r.notes, { userText: true }),
+          // generata dintr-o regula recurenta
+          csvCell(r.recurring_id ? labels.recurring.yes : labels.recurring.no),
         ].join(","),
       ),
     ];
@@ -148,7 +153,6 @@ const getTransactionYears = async (req, res, next) => {
   }
 };
 
-const TYPE = ["income", "expense", "savings"];
 
 const { isValidDate } = validators;
 
@@ -164,10 +168,10 @@ const addTransaction = async (req, res, next) => {
       });
     }
 
-    if (!TYPE.includes(type)) {
+    if (!TYPES.includes(type)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid type. Must be one of: income, expense, savings",
+        message: "Invalid type. Must be one of: income, expenses, savings",
       });
     }
 
@@ -183,10 +187,10 @@ const addTransaction = async (req, res, next) => {
       });
     }
 
-    if (notes !== undefined && notes !== null && typeof notes !== "string") {
+    if (!validators.isValidNotes(notes)) {
       return res.status(400).json({
         success: false,
-        message: "Notes must be a string or null",
+        message: `Notes must be a string or null, at most ${NOTES_MAX_LENGTH} characters`,
       });
     }
 
@@ -250,17 +254,17 @@ const updateTransaction = async (req, res, next) => {
     }
 
     // null sau "" sterge nota
-    if (notes !== undefined && notes !== null && typeof notes !== "string") {
+    if (!validators.isValidNotes(notes)) {
       return res.status(400).json({
         success: false,
-        message: "Notes must be a string or null",
+        message: `Notes must be a string or null, at most ${NOTES_MAX_LENGTH} characters`,
       });
     }
 
-    if (type !== undefined && !TYPE.includes(type)) {
+    if (type !== undefined && !TYPES.includes(type)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid type. Must be one of: income, expense, savings",
+        message: "Invalid type. Must be one of: income, expenses, savings",
       });
     }
 

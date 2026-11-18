@@ -1,6 +1,9 @@
 // cea mai mare valoare din coloanele numeric(12,2)
 const MAX_AMOUNT = 9999999999.99;
 
+// la fel ca in formularul din FE si ca CHECK-ul din DB
+export const NOTES_MAX_LENGTH = 1500;
+
 const validators = {
   /**
    * @param {string} value
@@ -28,14 +31,25 @@ const validators = {
   },
 
   /**
-   * parola nu se face trim; max 72 pt ca bcrypt ignora ce e dupa 72 de bytes
+   * parola nu se face trim; min 8 caractere, max 72 de bytes (bcrypt ignora
+   * ce e dupa 72 de bytes; diacriticele si emoji ocupa mai mult de 1 byte)
    * @param {string} password
    * @returns {boolean}
    */
   isValidPassword: (password) =>
     typeof password === "string" &&
     password.length >= 8 &&
-    password.length <= 72,
+    Buffer.byteLength(password, "utf8") <= 72,
+
+  /**
+   * nota optionala: undefined, null sau string de max NOTES_MAX_LENGTH dupa trim
+   * @param {unknown} notes
+   * @returns {boolean}
+   */
+  isValidNotes: (notes) =>
+    notes === undefined ||
+    notes === null ||
+    (typeof notes === "string" && notes.trim().length <= NOTES_MAX_LENGTH),
 
   /**
    * @param {string} value

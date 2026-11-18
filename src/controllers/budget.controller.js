@@ -1,3 +1,4 @@
+import { TYPES } from "../utils/types.js";
 import {
   fetchBudgetSummary,
   fetchTargetSummary,
@@ -38,7 +39,9 @@ const getBudgetSummary = async (req, res, next) => {
     // normalizezi in ceva usor de folosit pe frontend
     const summary = { income: 0, expense: 0, savings: 0 };
     for (const row of rows) {
-      summary[row.type] = Number(row.total);
+      // cheile raspunsului urmeaza coloanele din budget_targets (expense)
+      const key = row.type === "expenses" ? "expense" : row.type;
+      summary[key] = Number(row.total);
     }
     // net = venituri - cheltuieli (economiile nu se scad)
     summary.net = summary.income - summary.expense;
@@ -101,16 +104,15 @@ const getBudgetTrend = async (req, res, next) => {
   }
 };
 
-const TYPES = ["income", "expense", "savings"];
 
-// GET /budget/by-category?type=expense  (+ ?period= ca la summary; implicit luna curenta)
+// GET /budget/by-category?type=expenses  (+ ?period= ca la summary; implicit luna curenta)
 const getByCategory = async (req, res, next) => {
   try {
     const { type } = req.query;
     if (!TYPES.includes(type)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid type. Must be one of: income, expense, savings",
+        message: "Invalid type. Must be one of: income, expenses, savings",
       });
     }
 

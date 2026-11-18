@@ -258,7 +258,7 @@ Obiectul `recurring`:
 ```json
 {
   "id": "0b7c3f0e-2a1d-4a52-9d0e-6f1f2b9a7c11",
-  "type": "expense",
+  "type": "expenses",
   "category_id": "5f0f8a3e-1c2b-4d7a-9e3f-2a1b0c9d8e7f",
   "category_name": "Locuință",
   "amount": 1200,
@@ -296,7 +296,7 @@ Obiectul `recurring`:
 
 ```json
 {
-  "type": "expense",
+  "type": "expenses",
   "category_id": "5f0f8a3e-1c2b-4d7a-9e3f-2a1b0c9d8e7f",
   "amount": 1200,
   "notes": "Chirie",
@@ -318,7 +318,7 @@ Obiectul `recurring`:
   "recurring": { "...": "obiectul creat" },
   "transaction": {
     "item_id": "9a1c2b3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
-    "type": "expense",
+    "type": "expenses",
     "category_id": "5f0f8a3e-1c2b-4d7a-9e3f-2a1b0c9d8e7f",
     "category_name": "Locuință",
     "amount": 1200,
@@ -346,7 +346,7 @@ O categorie are **cel mult o regulă**. Ștergerea categoriei șterge și regula
 
 ```json
 {
-  "type": "expense",
+  "type": "expenses",
   "category_id": "5f0f8a3e-1c2b-4d7a-9e3f-2a1b0c9d8e7f",
   "amount": 1250,
   "notes": null,
@@ -392,7 +392,7 @@ Obiectul `notification`:
   "data": {
     "recurring_id": "0b7c3f0e-2a1d-4a52-9d0e-6f1f2b9a7c11",
     "item_id": "9a1c2b3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
-    "type": "expense",
+    "type": "expenses",
     "amount": 1200,
     "category": "Locuință",
     "date": "2026-12-01"

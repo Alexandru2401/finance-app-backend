@@ -1,8 +1,8 @@
+import { TYPES } from "../utils/types.js";
 import pool from "../db/db.js";
 
 // ?limit= poate cere mai putine, dar niciodata mai mult de 15 pe pagina
 const MAX_PER_PAGE = 15;
-const TYPES = ["income", "expense", "savings"];
 
 // intreg pozitiv valid, altfel fallback (evita NaN/negative ajunse in LIMIT/OFFSET)
 const toSafeInt = (value, fallback, max = Infinity) => {
@@ -28,7 +28,7 @@ const parseSearchAmount = (text) => {
 const buildTransactionFilters = (userId, filters = {}) => {
   const {
     search,
-    type, // 'income' | 'expense' | 'savings'
+    type, // 'income' | 'expenses' | 'savings'
     categoryId,
     year,
     month,
@@ -138,7 +138,7 @@ const fetchTransactions = async (userId, filters = {}) => {
   const totalsQuery = `
     SELECT COUNT(*) AS count,
            COALESCE(SUM(CASE WHEN b.type = 'income' THEN b.amount
-                             WHEN b.type = 'expense' THEN -b.amount
+                             WHEN b.type = 'expenses' THEN -b.amount
                              ELSE 0 END), 0) AS net
     FROM budget_items b
     LEFT JOIN categories c ON c.category_id = b.category_id
@@ -174,7 +174,8 @@ const addNewTransaction = async (userId, transaction) => {
   const response = await pool.query(
     `INSERT INTO budget_items (user_id, type, category_id, amount, date, notes)
      VALUES ($1, $2, $3, $4, $5, $6)
-     RETURNING item_id, type, category_id, amount, date, notes, created_at`,
+     RETURNING item_id, type, category_id, amount, date, notes, recurring_id,
+               created_at`,
     [
       userId,
       transaction.type,
@@ -203,9 +204,11 @@ const fetchTransactionById = async (itemId, userId) => {
 const updateTransactionById = async (itemId, userId, transaction) => {
   const response = await pool.query(
     `UPDATE budget_items
-     SET type = $1, category_id = $2, amount = $3, date = $4, notes = $5
+     SET type = $1, category_id = $2, amount = $3, date = $4, notes = $5,
+         updated_at = now()
      WHERE item_id = $6 AND user_id = $7
-     RETURNING item_id, type, category_id, amount, date, notes, created_at`,
+     RETURNING item_id, type, category_id, amount, date, notes, recurring_id,
+               created_at, updated_at`,
     [
       transaction.type,
       transaction.categoryId,
@@ -238,7 +241,7 @@ const fetchTransactionsForExport = async (userId, filters = {}) => {
   );
   const response = await pool.query(
     `SELECT to_char(b.date, 'YYYY-MM-DD') AS date, b.type, b.amount, b.notes,
-            c.name AS category_name
+            b.recurring_id, c.name AS category_name
      FROM budget_items b
      LEFT JOIN categories c ON c.category_id = b.category_id
      WHERE ${where}

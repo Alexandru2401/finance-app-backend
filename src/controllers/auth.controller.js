@@ -7,7 +7,9 @@ import {
   fetchUserInfoById,
   insertRefreshToken,
   fetchRefreshToken,
+  rotateRefreshToken,
   deleteRefreshToken,
+  deleteUserRefreshTokens,
   updateUserProfile,
   fetchUserPasswordById,
   updatePassword,
@@ -22,6 +24,15 @@ import {
 } from "../utils/jwtHelperFn.js";
 
 const ALLOWED_LANGUAGES = ["ro", "en"];
+
+// optiunile comune ale cookie-urilor de sesiune
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "strict",
+};
+const ACCESS_TOKEN_MAX_AGE = 15 * 60 * 1000;
+const REFRESH_TOKEN_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
 // paginile din dashboard care au tur ghidat
 const ALLOWED_TOURS = [
   "overview",
@@ -52,7 +63,7 @@ const register = async (req, res, next) => {
       validators.isValidEmail,
     );
     if (!validators.isValidPassword(password)) {
-      const error = new Error("Password must be between 8 and 72 characters");
+      const error = new Error("Password must be at least 8 characters and at most 72 characters");
       error.status = 400;
       throw error;
     }
@@ -146,7 +157,7 @@ const login = async (req, res, next) => {
       validators.isValidEmail,
     );
     if (!validators.isValidPassword(password)) {
-      const error = new Error("Password must be between 8 and 72 characters");
+      const error = new Error("Password must be at least 8 characters and at most 72 bytes");
       error.status = 400;
       throw error;
     }
@@ -333,8 +344,10 @@ const logout = async (req, res, next) => {
   }
 };
 
-// POST /auth/refresh  emite un access token nou pe baza cookie-ului refreshToken
-// refresh token-ul ramane acelasi (valabil 30 de zile de la login)
+// POST /auth/refresh  emite un access token nou si un refresh token nou
+// (rotatie): cel vechi e marcat ca inlocuit. Sesiunea e glisanta: 30 de zile
+// de la ultimul refresh. Un token inlocuit folosit din nou dupa perioada de
+// gratie (ROTATION_GRACE_SECONDS) inchide toate sesiunile userului
 const refresh = async (req, res, next) => {
   try {
     const refreshToken = req.cookies.refreshToken;
@@ -362,6 +375,15 @@ const refresh = async (req, res, next) => {
         .json({ success: false, message: "Invalid or expired refresh token" });
     }
 
+    if (storedToken.reused) {
+      await deleteUserRefreshTokens(storedToken.user_id);
+      res.clearCookie("accessToken", COOKIE_OPTIONS);
+      res.clearCookie("refreshToken", COOKIE_OPTIONS);
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid or expired refresh token" });
+    }
+
     // plan_type luat din db, ca sa prinda eventuale schimbari de plan
     const user = await fetchUserInfoById(decoded.user_id);
     if (!user || !user.is_active) {
@@ -370,17 +392,28 @@ const refresh = async (req, res, next) => {
         .json({ success: false, message: "User not found" });
     }
 
-    const accessToken = createAccesToken({
+    const payload = {
       user_id: user.user_id,
       email: user.email,
       plan_type: user.plan_type,
-    });
+    };
+    const accessToken = createAccesToken(payload);
+    const newRefreshToken = createRefreshToken(payload);
+
+    await rotateRefreshToken(
+      refreshToken,
+      user.user_id,
+      newRefreshToken,
+      new Date(Date.now() + REFRESH_TOKEN_MAX_AGE),
+    );
 
     res.cookie("accessToken", accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 15 * 60 * 1000,
+      ...COOKIE_OPTIONS,
+      maxAge: ACCESS_TOKEN_MAX_AGE,
+    });
+    res.cookie("refreshToken", newRefreshToken, {
+      ...COOKIE_OPTIONS,
+      maxAge: REFRESH_TOKEN_MAX_AGE,
     });
 
     res.status(200).json({ success: true, message: "Token refreshed" });
@@ -429,7 +462,7 @@ const updateUserPassword = async (req, res, next) => {
     }
 
     if (!validators.isValidPassword(newPassword)) {
-      const error = new Error("Password must be between 8 and 72 characters");
+      const error = new Error("Password must be at least 8 characters and at most 72 bytes");
       error.status = 400;
       throw error;
     }

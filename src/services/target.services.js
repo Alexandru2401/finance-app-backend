@@ -40,15 +40,16 @@ const fetchAllTargets = async (userId) => {
 };
 
 // insert sau update (unique pe user_id + month)
-// la update: campurile trimise ca null/undefined pastreaza valoarea existenta
+// values: doar campurile trimise; un camp cu null sterge target-ul (fara target)
+// la update: campurile netrimise pastreaza valoarea existenta
 // la insert (luna noua): campurile netrimise se copiaza din ultimul target dinainte
-const upsertTarget = async (userId, month, { income, expense, savings }) => {
+const upsertTarget = async (userId, month, values) => {
   const response = await pool.query(
     `INSERT INTO budget_targets (user_id, month, income, expense, savings)
      SELECT $1, m.month,
-            COALESCE($3::numeric, prev.income),
-            COALESCE($4::numeric, prev.expense),
-            COALESCE($5::numeric, prev.savings)
+            CASE WHEN $6 THEN $3::numeric ELSE prev.income END,
+            CASE WHEN $7 THEN $4::numeric ELSE prev.expense END,
+            CASE WHEN $8 THEN $5::numeric ELSE prev.savings END
      FROM (SELECT ${MONTH_EXPR} AS month) m
      LEFT JOIN LATERAL (
        SELECT income, expense, savings FROM budget_targets
@@ -57,15 +58,24 @@ const upsertTarget = async (userId, month, { income, expense, savings }) => {
        LIMIT 1
      ) prev ON TRUE
      ON CONFLICT (user_id, month) DO UPDATE SET
-       income     = COALESCE($3::numeric, budget_targets.income),
-       expense    = COALESCE($4::numeric, budget_targets.expense),
-       savings    = COALESCE($5::numeric, budget_targets.savings),
+       income     = CASE WHEN $6 THEN $3::numeric ELSE budget_targets.income END,
+       expense    = CASE WHEN $7 THEN $4::numeric ELSE budget_targets.expense END,
+       savings    = CASE WHEN $8 THEN $5::numeric ELSE budget_targets.savings END,
        updated_at = now()
      RETURNING id, to_char(month, 'YYYY-MM-DD') AS month,
                NULL AS inherited_from,
                income, expense, savings, created_at, updated_at,
                (xmax = 0) AS inserted`,
-    [userId, month ?? null, income ?? null, expense ?? null, savings ?? null],
+    [
+      userId,
+      month ?? null,
+      values.income ?? null,
+      values.expense ?? null,
+      values.savings ?? null,
+      "income" in values,
+      "expense" in values,
+      "savings" in values,
+    ],
   );
   return response.rows[0];
 };
@@ -77,7 +87,7 @@ const fetchTargetHistory = async (userId) => {
     `SELECT to_char(t.month, 'YYYY-MM') AS month,
             t.income, t.expense, t.savings,
             COALESCE(SUM(b.amount) FILTER (WHERE b.type = 'income'), 0)  AS actual_income,
-            COALESCE(SUM(b.amount) FILTER (WHERE b.type = 'expense'), 0) AS actual_expense,
+            COALESCE(SUM(b.amount) FILTER (WHERE b.type = 'expenses'), 0) AS actual_expense,
             COALESCE(SUM(b.amount) FILTER (WHERE b.type = 'savings'), 0) AS actual_savings
      FROM budget_targets t
      LEFT JOIN budget_items b

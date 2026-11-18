@@ -24,7 +24,7 @@
     "income": 200,
     "expense": null,
     "savings": null,
-    "netBalance": 200
+    "net": 200
   }
 }
 ```
@@ -45,7 +45,7 @@
     "income": 200,
     "expense": null,
     "savings": null,
-    "netBalance": 200
+    "net": 200
   }
 }
 ```

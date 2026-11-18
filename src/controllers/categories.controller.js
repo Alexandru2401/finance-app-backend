@@ -1,3 +1,4 @@
+import { TYPES } from "../utils/types.js";
 import validators from "../validators/inputValidators.js";
 import {
   fetchAllCategories,
@@ -8,11 +9,21 @@ import {
   deleteUserCategory,
 } from "../services/categories.services.js";
 
+// GET /categories  (?type=income|expenses|savings)
 const getAllCategories = async (req, res, next) => {
   try {
+    const { type } = req.query;
+    // altfel valoarea ajunge in enum-ul din DB si da 500
+    if (type !== undefined && !TYPES.includes(type)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid type. Must be one of: income, expenses, savings",
+      });
+    }
+
     const categories = await fetchAllCategories(
       req.user.user_id,
-      req.query.type,
+      type,
     );
     res.status(200).json({ success: true, categories });
   } catch (err) {
@@ -21,7 +32,6 @@ const getAllCategories = async (req, res, next) => {
   }
 };
 
-const TYPES = ["income", "expense", "savings"];
 
 // POST /categories  body: { type, name }
 const createNewCategory = async (req, res, next) => {
@@ -31,7 +41,7 @@ const createNewCategory = async (req, res, next) => {
     if (!TYPES.includes(type)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid type. Must be one of: income, expense, savings",
+        message: "Invalid type. Must be one of: income, expenses, savings",
       });
     }
 
