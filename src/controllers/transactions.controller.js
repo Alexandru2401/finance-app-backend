@@ -14,7 +14,27 @@ import {
 const INVALID_AMOUNT =
   "Amount must be greater than 0, with at most 2 decimals and at most 9999999999.99";
 
+// valorile acceptate in ?sort= (vezi buildTransactionFilters)
+const SORTS = ["newest", "oldest", "highest", "lowest"];
+
+// intreg in [min, max] dintr-un parametru din query; null daca e invalid
+const toIntInRange = (value, min, max) => {
+  if (typeof value !== "string" || !/^\d+$/.test(value)) return null;
+  const num = Number(value);
+  return num >= min && num <= max ? num : null;
+};
+
+// suma >= 0 dintr-un parametru din query; null daca e invalida
+const toFilterAmount = (value) => {
+  if (typeof value !== "string" || value.trim() === "") return null;
+  const num = Number(value);
+  return validators.isValidAmount(num) ? num : null;
+};
+
 // filtrele din query string, comune pentru GET /transactions si /export
+// lipsa (sau "" / "all" la type) = fara filtru; o valoare invalida da 400,
+// nu 500 din Postgres (ex. ?minAmount=abc, ?category_id=x, ?year=2026a)
+// intoarce { filters } sau { error } (mesajul pentru 400)
 const parseFilters = (query) => {
   const {
     search,
@@ -27,17 +47,62 @@ const parseFilters = (query) => {
     maxAmount,
     sort,
   } = query;
-  return {
-    search,
-    type,
-    categoryId: category_id,
-    year: year ? Number(year) : undefined,
-    month: month ? Number(month) : undefined,
-    day: day ? Number(day) : undefined,
-    minAmount: minAmount != null ? Number(minAmount) : undefined,
-    maxAmount: maxAmount != null ? Number(maxAmount) : undefined,
-    sort,
-  };
+  const present = (value) => value !== undefined && value !== "";
+  const filters = {};
+
+  if (present(search)) {
+    if (typeof search !== "string") return { error: "Invalid search" };
+    filters.search = search;
+  }
+  if (present(type) && type !== "all") {
+    if (!TYPES.includes(type)) {
+      return {
+        error: "Invalid type. Must be one of: all, income, expenses, savings",
+      };
+    }
+    filters.type = type;
+  }
+  if (present(category_id)) {
+    if (
+      typeof category_id !== "string" ||
+      !validators.isValidUUID(category_id)
+    ) {
+      return { error: "Invalid category_id" };
+    }
+    filters.categoryId = category_id;
+  }
+
+  const ranges = { year: [1, 9999], month: [1, 12], day: [1, 31] };
+  for (const [key, value] of Object.entries({ year, month, day })) {
+    if (!present(value)) continue;
+    const num = toIntInRange(value, ...ranges[key]);
+    if (num === null) {
+      return {
+        error: `Invalid ${key}. Must be an integer between ${ranges[key].join(" and ")}`,
+      };
+    }
+    filters[key] = num;
+  }
+
+  for (const [key, value] of Object.entries({ minAmount, maxAmount })) {
+    if (!present(value)) continue;
+    const num = toFilterAmount(value);
+    if (num === null) {
+      return {
+        error: `Invalid ${key}. Must be a number >= 0, with at most 2 decimals`,
+      };
+    }
+    filters[key] = num;
+  }
+
+  if (present(sort)) {
+    if (!SORTS.includes(sort)) {
+      return { error: `Invalid sort. Must be one of: ${SORTS.join(", ")}` };
+    }
+    filters.sort = sort;
+  }
+
+  return { filters };
 };
 
 // GET /transactions  (?type=expenses&category_id=..&year=..&month=..&day=..&minAmount=..&maxAmount=..&search=..&sort=newest&page=1&limit=15)
@@ -45,6 +110,8 @@ const parseFilters = (query) => {
 const getTransactions = async (req, res, next) => {
   try {
     const { page, limit } = req.query;
+    const { filters, error } = parseFilters(req.query);
+    if (error) return res.status(400).json({ success: false, message: error });
 
     const {
       rows,
@@ -54,7 +121,7 @@ const getTransactions = async (req, res, next) => {
       perPage,
       totalPages,
     } = await fetchTransactions(req.user.user_id, {
-      ...parseFilters(req.query),
+      ...filters,
       page,
       perPage: limit,
     });
@@ -107,11 +174,11 @@ const csvCell = (value, { userText = false } = {}) => {
 // afiseze corect diacriticele
 const exportTransactions = async (req, res, next) => {
   try {
+    const { filters, error } = parseFilters(req.query);
+    if (error) return res.status(400).json({ success: false, message: error });
+
     const labels = CSV_LABELS[req.query.lang] ?? CSV_LABELS.en;
-    const rows = await fetchTransactionsForExport(
-      req.user.user_id,
-      parseFilters(req.query),
-    );
+    const rows = await fetchTransactionsForExport(req.user.user_id, filters);
 
     const lines = [
       labels.header.join(","),
@@ -152,7 +219,6 @@ const getTransactionYears = async (req, res, next) => {
     next(err);
   }
 };
-
 
 const { isValidDate } = validators;
 
