@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import pool from "../db/db.js";
 import { getRatesToRon, getRate } from "./currency.services.js";
 import { insertStarterCategories } from "./categories.services.js";
@@ -42,10 +43,15 @@ const fetchUserByUsername = async (username) => {
   return response.rows[0];
 };
 
+// in db se salveaza doar hash-ul SHA-256 al refresh token-ului: daca baza se
+// scurge, token-urile nu pot fi folosite (security.md). JWT-ul e aleator si
+// lung, deci SHA-256 fara salt e suficient si permite cautarea dupa hash
+const hashToken = (token) => createHash("sha256").update(token).digest("hex");
+
 const insertRefreshToken = async (userId, refreshToken, expires_at) => {
   const response = await pool.query(
-    "INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3) RETURNING user_id, token",
-    [userId, refreshToken, expires_at],
+    "INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3) RETURNING user_id",
+    [userId, hashToken(refreshToken), expires_at],
   );
 
   return response.rows[0];
@@ -54,14 +60,16 @@ const insertRefreshToken = async (userId, refreshToken, expires_at) => {
 // refresh token-ul doar daca exista in db si nu a expirat (logout il sterge)
 const fetchRefreshToken = async (token) => {
   const response = await pool.query(
-    "SELECT user_id, token FROM refresh_tokens WHERE token = $1 AND expires_at > NOW()",
-    [token],
+    "SELECT user_id FROM refresh_tokens WHERE token = $1 AND expires_at > NOW()",
+    [hashToken(token)],
   );
   return response.rows[0];
 };
 
 const deleteRefreshToken = async (token) => {
-  await pool.query("DELETE FROM refresh_tokens WHERE token = $1", [token]);
+  await pool.query("DELETE FROM refresh_tokens WHERE token = $1", [
+    hashToken(token),
+  ]);
 };
 
 const fetchUserById = async (id) => {
@@ -199,7 +207,7 @@ const updatePassword = async (userId, hashedPassword, keepToken) => {
     if (keepToken) {
       await client.query(
         "DELETE FROM refresh_tokens WHERE user_id = $1 AND token <> $2",
-        [userId, keepToken],
+        [userId, hashToken(keepToken)],
       );
     } else {
       await client.query("DELETE FROM refresh_tokens WHERE user_id = $1", [
