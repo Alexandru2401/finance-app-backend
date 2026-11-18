@@ -83,6 +83,7 @@ Target-uri: GET /target, GET /target/all și POST /target
 • GET /target?month=YYYY-MM (implicit luna curentă) întoarce mereu un rând. Dacă luna nu are target propriu, îl moștenește pe ultimul dinainte, fără să-l salveze în DB: id e null, iar inheritedFrom e luna din care vine.
 • POST /target cu body { month?, income?, expense?, savings? } face upsert pe (user_id, month). Câmpurile trebuie să fie numere >= 0, cu maximum 2 zecimale și cel mult 9999999999.99, și e obligatoriu cel puțin unul.
 • La o lună nouă (201), câmpurile netrimise se copiază din ultimul target dinainte. La o lună existentă (200), câmpurile netrimise își păstrează valoarea.
+• Un câmp trimis ca null (sau "") șterge target-ul pentru el: rămâne fără target în luna respectivă și în lunile care o moștenesc. FE-ul trimite mereu toate cele trei câmpuri (gol = null).
 Exemplu de răspuns pentru GET /target?month=2026-11 (fără target propriu în noiembrie):
 {
   "success": true,

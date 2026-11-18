@@ -63,6 +63,8 @@ const getAllTargets = async (req, res, next) => {
 
 // POST /target  body: { month?, income?, expense?, savings? }
 // creeaza target-ul lunii sau il actualizeaza daca exista deja
+// fiecare camp: numar >= 0 = noua valoare; null sau "" = fara target (sterge
+// valoarea); netrimis = pastreaza valoarea (la o luna noua: din luna dinainte)
 const saveTarget = async (req, res, next) => {
   try {
     const body = req.body ?? {};
@@ -78,7 +80,11 @@ const saveTarget = async (req, res, next) => {
     const values = {};
     for (const field of FIELDS) {
       const value = body[field];
-      if (value === undefined || value === null || value === "") continue;
+      if (value === undefined) continue;
+      if (value === null || value === "") {
+        values[field] = null;
+        continue;
+      }
 
       const numeric = Number(value);
       if (!validators.isValidAmount(numeric)) {
