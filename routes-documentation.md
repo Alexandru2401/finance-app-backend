@@ -17,6 +17,8 @@ npx supabase migration list
   - [DELETE /auth/account](#delete-authaccount)
 - [Budget](#budget)
   - [GET /budget/health](#get-budgethealth)
+  - [GET /budget/costs](#get-budgetcosts)
+  - [GET /budget/forecast](#get-budgetforecast)
 - [Recurring](#recurring)
   - [GET /recurring](#get-recurring)
   - [POST /recurring](#post-recurring)
@@ -246,6 +248,76 @@ Fără body. Răspunsul e același și dacă nu există o sesiune activă (logou
 - În primele 5 zile din lună lipsesc `pace` și `trend`; scorul se rescalează la 100.
 
 **Erori:** `400` (`today` invalid).
+
+---
+
+### GET /budget/costs
+
+🔒 **Costuri fixe și variabile** (pagina Analytics). Limită: comună cu restul `/budget`.
+
+**Query:** `period` (opțional, ca la `/budget/summary`; implicit luna curentă). Valori: `this-month`, `last-month`, `last-3`, `last-6`, `last-12`, `all`, `YYYY-MM:YYYY-MM`, `YYYY-MM-DD:YYYY-MM-DD`.
+
+**Response** `200 OK`
+
+```json
+{
+  "success": true,
+  "costs": {
+    "fixed": {
+      "items": [
+        { "recurring_id": "0b7c3f0e-…", "category_id": "5f0f8a3e-…", "category": "Locuință", "amount": 1200, "pct": 80 },
+        { "recurring_id": "1a2b3c4d-…", "category_id": "6a1b2c3d-…", "category": "Internet", "amount": 300, "pct": 20 }
+      ],
+      "total": 1500
+    },
+    "variable": {
+      "items": [
+        { "category_id": "7b2c3d4e-…", "category": "Mâncare", "amount": 950.5, "pct": 100 }
+      ],
+      "total": 950.5
+    }
+  }
+}
+```
+
+- `fixed`: regulile recurente **active** de cheltuieli, cea mai mare prima. Nu depind de `period`.
+- `variable`: cele mai mari 5 categorii de cheltuieli din `period`, fără categoriile cu regulă recurentă activă. `category_id` și `category` sunt `null` pentru tranzacțiile cu categoria ștearsă.
+- `pct`: cota rândului din `total` (0–100, întreg). `total` = suma rândurilor din listă.
+
+**Erori:** `400` (`period` invalid).
+
+---
+
+### GET /budget/forecast
+
+🔒 **Economii + prognoză** (pagina Analytics). Limită: comună cu restul `/budget`.
+
+**Query:**
+- `period` (opțional, ca la `/budget/budget-trend`; implicit `last-6`);
+- `ahead` (opțional, întreg 1–12, implicit 3): câte luni de prognoză.
+
+**Response** `200 OK`
+
+```json
+{
+  "success": true,
+  "forecast": {
+    "points": [
+      { "month": "2026-10", "savings": 400, "forecast": null },
+      { "month": "2026-11", "savings": 500, "forecast": 500 },
+      { "month": "2026-12", "savings": null, "forecast": 433.33 }
+    ],
+    "average": 433.33
+  }
+}
+```
+
+- Câte un punct pentru fiecare lună din `period` (economiile = tranzacțiile `savings`), apoi `ahead` luni de prognoză.
+- Prognoza = media economiilor din ultimele 3 luni ale intervalului (`average`).
+- `forecast` e setat și pe ultima lună reală (egal cu `savings`), ca linia de prognoză să pornească de acolo; pe lunile de prognoză `savings` e `null`.
+- Fără nicio lună: `points: []`, `average: null`.
+
+**Erori:** `400` (`period` sau `ahead` invalid).
 
 ---
 

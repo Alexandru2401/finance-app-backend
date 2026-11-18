@@ -4,6 +4,7 @@ config({ path: `.env.${process.env.NODE_ENV || "development"}.local` });
 
 // REQUIRED_VARS
 const REQUIRED_VARS = [
+  "NODE_ENV",
   "PORT",
   "BASE_PATH",
   "DATABASE_URL",
@@ -20,14 +21,23 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
+// decide si cookie-urile secure (auth.controller.js): doar development le trimite
+// fara secure, deci o valoare scrisa gresit nu trebuie sa treaca neobservata
+const NODE_ENVS = ["development", "staging", "production"];
+if (!NODE_ENVS.includes(process.env.NODE_ENV.trim())) {
+  console.error(`NODE_ENV must be one of: ${NODE_ENVS.join(", ")}`);
+  process.exit(1);
+}
+
 if (!/^\d+$/.test(process.env.SALT_ROUNDS.trim())) {
   console.error("SALT_ROUNDS must be an integer");
   process.exit(1);
 }
 
+export const NODE_ENV = process.env.NODE_ENV.trim();
+
 export const {
   PORT,
-  NODE_ENV,
   BASE_PATH,
   SALT_ROUNDS,
   JWT_SECRET,
