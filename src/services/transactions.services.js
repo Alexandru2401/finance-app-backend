@@ -264,7 +264,18 @@ const fetchTransactionYears = async (userId) => {
   return response.rows.map((row) => row.year);
 };
 
+// pt limita de tranzactii per user (utils/limits.js); foloseste indexul
+// budget_items_user_date_idx
+const countTransactions = async (userId) => {
+  const response = await pool.query(
+    "SELECT COUNT(*)::int AS count FROM budget_items WHERE user_id = $1",
+    [userId],
+  );
+  return response.rows[0].count;
+};
+
 export {
+  countTransactions,
   fetchTransactions,
   fetchTransactionsForExport,
   fetchTransactionYears,

@@ -404,7 +404,7 @@ Obiectul `recurring`:
 
 `transaction` apare doar când s-a trimis `date`.
 
-**Erori:** `400` (câmp lipsă sau invalid, categorie de alt tip), `404` (categoria nu există / nu e a userului), `409` (categoria are deja o regulă: „This category already has a recurring item”, sau peste 50 de reguli).
+**Erori:** `400` (câmp lipsă sau invalid, categorie de alt tip), `404` (categoria nu există / nu e a userului), `409` (categoria are deja o regulă: „This category already has a recurring item”), `422` (`code: "LIMIT_REACHED"`: peste 50 de reguli sau, cu `date`, peste 20.000 de tranzacții).
 
 O categorie are **cel mult o regulă**. Ștergerea categoriei șterge și regula ei; tranzacțiile adăugate deja rămân.
 

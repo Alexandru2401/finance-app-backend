@@ -1,5 +1,6 @@
 import { TYPES } from "../utils/types.js";
 import validators from "../validators/inputValidators.js";
+import { MAX_CATEGORIES_PER_USER, limitReached } from "../utils/limits.js";
 import {
   fetchAllCategories,
   addNewCategory,
@@ -7,6 +8,7 @@ import {
   fetchUserCategoryById,
   renameUserCategory,
   deleteUserCategory,
+  countCategories,
 } from "../services/categories.services.js";
 
 // GET /categories  (?type=income|expenses|savings)
@@ -62,6 +64,13 @@ const createNewCategory = async (req, res, next) => {
       return res
         .status(409)
         .json({ success: false, message: "Category already exists" });
+    }
+
+    if ((await countCategories(req.user.user_id)) >= MAX_CATEGORIES_PER_USER) {
+      return limitReached(
+        res,
+        `You can have at most ${MAX_CATEGORIES_PER_USER} categories`,
+      );
     }
 
     const category = await addNewCategory(req.user.user_id, type, cleanName);

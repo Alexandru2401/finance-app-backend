@@ -1,10 +1,12 @@
 import { TYPES } from "../utils/types.js";
 import validators, { NOTES_MAX_LENGTH } from "../validators/inputValidators.js";
+import { MAX_TRANSACTIONS_PER_USER, limitReached } from "../utils/limits.js";
 import {
   fetchTransactions,
   fetchTransactionsForExport,
   fetchTransactionYears,
   fetchCategoryForUser,
+  countTransactions,
   addNewTransaction,
   fetchTransactionById,
   updateTransactionById,
@@ -272,6 +274,15 @@ const addTransaction = async (req, res, next) => {
         success: false,
         message: `Category '${category.name}' belongs to type '${category.type}', not '${type}'`,
       });
+    }
+
+    if (
+      (await countTransactions(req.user.user_id)) >= MAX_TRANSACTIONS_PER_USER
+    ) {
+      return limitReached(
+        res,
+        `You can have at most ${MAX_TRANSACTIONS_PER_USER} transactions`,
+      );
     }
 
     const transaction = await addNewTransaction(req.user.user_id, {
