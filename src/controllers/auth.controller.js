@@ -1,3 +1,4 @@
+import { NODE_ENV } from "../config/env.js";
 import validators from "../validators/inputValidators.js";
 import { invalidInputError } from "../utils/customError.js";
 import {
@@ -26,9 +27,12 @@ import {
 const ALLOWED_LANGUAGES = ["ro", "en"];
 
 // optiunile comune ale cookie-urilor de sesiune
+// secure (doar HTTPS) peste tot in afara de development; NODE_ENV e obligatoriu
+// (config/env.js), deci o variabila uitata pe Render nu mai trimite cookie-uri
+// fara secure
 const COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
+  secure: NODE_ENV !== "development",
   sameSite: "strict",
 };
 const ACCESS_TOKEN_MAX_AGE = 15 * 60 * 1000;
@@ -99,7 +103,7 @@ const register = async (req, res, next) => {
       plan_type: newUser.plan_type,
     });
 
-    const refreshTokenExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const refreshTokenExpiry = new Date(Date.now() + REFRESH_TOKEN_MAX_AGE);
 
     const insertRefrehToken = await insertRefreshToken(
       newUser.user_id,
@@ -114,16 +118,12 @@ const register = async (req, res, next) => {
     }
 
     res.cookie("accessToken", accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 15 * 60 * 1000,
+      ...COOKIE_OPTIONS,
+      maxAge: ACCESS_TOKEN_MAX_AGE,
     });
     res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 30 * 24 * 60 * 60 * 1000,
+      ...COOKIE_OPTIONS,
+      maxAge: REFRESH_TOKEN_MAX_AGE,
     });
 
     res.status(201).json({
@@ -195,20 +195,16 @@ const login = async (req, res, next) => {
     await insertRefreshToken(
       foundedUser.user_id,
       refreshToken,
-      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      new Date(Date.now() + REFRESH_TOKEN_MAX_AGE),
     );
 
     res.cookie("accessToken", accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 15 * 60 * 1000,
+      ...COOKIE_OPTIONS,
+      maxAge: ACCESS_TOKEN_MAX_AGE,
     });
     res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 30 * 24 * 60 * 60 * 1000,
+      ...COOKIE_OPTIONS,
+      maxAge: REFRESH_TOKEN_MAX_AGE,
     });
 
     delete foundedUser.password;
@@ -324,17 +320,8 @@ const logout = async (req, res, next) => {
       await deleteRefreshToken(refreshToken);
     }
 
-    res.clearCookie("accessToken", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-    });
-
-    res.clearCookie("refreshToken", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-    });
+    res.clearCookie("accessToken", COOKIE_OPTIONS);
+    res.clearCookie("refreshToken", COOKIE_OPTIONS);
 
     // 204 si cand nu exista sesiune: logout-ul e idempotent
     return res.status(204).end();
@@ -548,13 +535,8 @@ const deleteAccount = async (req, res, next) => {
 
     await deleteUserAccount(req.user.user_id);
 
-    const cookieOptions = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-    };
-    res.clearCookie("accessToken", cookieOptions);
-    res.clearCookie("refreshToken", cookieOptions);
+    res.clearCookie("accessToken", COOKIE_OPTIONS);
+    res.clearCookie("refreshToken", COOKIE_OPTIONS);
 
     res.status(204).end();
   } catch (err) {

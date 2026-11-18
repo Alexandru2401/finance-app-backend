@@ -16,10 +16,12 @@ import notificationsRouter from "./routes/notifications.routes.js";
 
 const app = express();
 
-// Render pune un proxy în fața aplicației; fără asta req.ip ar fi IP-ul proxy-ului
-// si rate limiting-ul ar bloca toti userii deodata.
-// Cand activezi proxy-ul prin Netlify (_redirects), schimba in 2.
-app.set("trust proxy", 1);
+// Lantul in productie: user -> Netlify (proxy /api/*) -> Render -> app.
+// 2 = req.ip e IP-ul userului (al doilea de la dreapta din X-Forwarded-For);
+// cu 1 ar fi IP-ul serverului Netlify si rate limiting-ul per IP ar fi comun
+// pentru toti userii care trec prin el (security.md 1.1).
+// Daca se scoate proxy-ul Netlify, se trece inapoi pe 1.
+app.set("trust proxy", 2);
 
 const allowedOrigins = CLIENT_URL?.split(",").map((url) => url.trim()) ?? [];
 
