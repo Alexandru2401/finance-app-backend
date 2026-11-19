@@ -1,5 +1,14 @@
-import validators from "../validators/inputValidators.js";
-import { fetchCategoryForUser } from "../services/transactions.services.js";
+import { TYPES } from "../utils/types.js";
+import validators, { NOTES_MAX_LENGTH } from "../validators/inputValidators.js";
+import {
+  fetchCategoryForUser,
+  countTransactions,
+} from "../services/transactions.services.js";
+import {
+  MAX_RECURRING_PER_USER,
+  MAX_TRANSACTIONS_PER_USER,
+  limitReached,
+} from "../utils/limits.js";
 import {
   fetchRecurringItems,
   fetchRecurringItemById,
@@ -20,13 +29,6 @@ const categoryTaken = (res) =>
 // doua cereri simultane: indexul UNIQUE din db o prinde pe a doua
 const isUniqueViolation = (err) => err?.code === "23505";
 
-const TYPES = ["income", "expense", "savings"];
-
-// limita de reguli per user (security.md 1.8)
-const MAX_RECURRING_PER_USER = 50;
-
-// la fel ca in formularul din FE si ca CHECK-ul din DB
-const NOTES_MAX_LENGTH = 1500;
 
 const INVALID_AMOUNT =
   "Amount must be greater than 0, with at most 2 decimals and at most 9999999999.99";
@@ -90,7 +92,6 @@ const getRecurringItems = async (req, res, next) => {
     const recurring = await fetchRecurringItems(req.user.user_id);
     res.status(200).json({ success: true, recurring });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -115,7 +116,7 @@ const createRecurringItem = async (req, res, next) => {
     if (!TYPES.includes(type)) {
       return badRequest(
         res,
-        "Invalid type. Must be one of: income, expense, savings",
+        "Invalid type. Must be one of: income, expenses, savings",
       );
     }
 
@@ -149,10 +150,21 @@ const createRecurringItem = async (req, res, next) => {
     }
 
     if ((await countRecurringItems(userId)) >= MAX_RECURRING_PER_USER) {
-      return res.status(409).json({
-        success: false,
-        message: `You can have at most ${MAX_RECURRING_PER_USER} recurring items`,
-      });
+      return limitReached(
+        res,
+        `You can have at most ${MAX_RECURRING_PER_USER} recurring items`,
+      );
+    }
+
+    // cu `date`, regula se creeaza impreuna cu prima ei tranzactie
+    if (
+      date !== undefined &&
+      (await countTransactions(userId)) >= MAX_TRANSACTIONS_PER_USER
+    ) {
+      return limitReached(
+        res,
+        `You can have at most ${MAX_TRANSACTIONS_PER_USER} transactions`,
+      );
     }
 
     // urmatoarea generare e dupa azi si dupa prima tranzactie (daca e in viitor),
@@ -186,7 +198,6 @@ const createRecurringItem = async (req, res, next) => {
     });
   } catch (err) {
     if (isUniqueViolation(err)) return categoryTaken(res);
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -222,7 +233,7 @@ const updateRecurringItemById = async (req, res, next) => {
     if (type !== undefined && !TYPES.includes(type)) {
       return badRequest(
         res,
-        "Invalid type. Must be one of: income, expense, savings",
+        "Invalid type. Must be one of: income, expenses, savings",
       );
     }
 
@@ -293,7 +304,6 @@ const updateRecurringItemById = async (req, res, next) => {
     res.status(200).json({ success: true, recurring });
   } catch (err) {
     if (isUniqueViolation(err)) return categoryTaken(res);
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -308,7 +318,6 @@ const deleteRecurringItemById = async (req, res, next) => {
 
     res.status(204).end();
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };

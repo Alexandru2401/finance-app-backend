@@ -1,4 +1,6 @@
+import { NODE_ENV } from "../config/env.js";
 import validators from "../validators/inputValidators.js";
+import { logger } from "../utils/logger.js";
 import { invalidInputError } from "../utils/customError.js";
 import {
   insertUser,
@@ -7,7 +9,9 @@ import {
   fetchUserInfoById,
   insertRefreshToken,
   fetchRefreshToken,
+  rotateRefreshToken,
   deleteRefreshToken,
+  deleteUserRefreshTokens,
   updateUserProfile,
   fetchUserPasswordById,
   updatePassword,
@@ -22,6 +26,26 @@ import {
 } from "../utils/jwtHelperFn.js";
 
 const ALLOWED_LANGUAGES = ["ro", "en"];
+
+// optiunile comune ale cookie-urilor de sesiune
+// secure (doar HTTPS) peste tot in afara de development; NODE_ENV e obligatoriu
+// (config/env.js), deci o variabila uitata pe Render nu mai trimite cookie-uri
+// fara secure
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: NODE_ENV !== "development",
+  sameSite: "strict",
+};
+const ACCESS_TOKEN_MAX_AGE = 15 * 60 * 1000;
+const REFRESH_TOKEN_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
+// paginile din dashboard care au tur ghidat
+const ALLOWED_TOURS = [
+  "overview",
+  "budget",
+  "transactions",
+  "analytics",
+  "settings",
+];
 
 const register = async (req, res, next) => {
   try {
@@ -44,7 +68,7 @@ const register = async (req, res, next) => {
       validators.isValidEmail,
     );
     if (!validators.isValidPassword(password)) {
-      const error = new Error("Password must be between 8 and 72 characters");
+      const error = new Error("Password must be at least 8 characters and at most 72 characters");
       error.status = 400;
       throw error;
     }
@@ -80,7 +104,7 @@ const register = async (req, res, next) => {
       plan_type: newUser.plan_type,
     });
 
-    const refreshTokenExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const refreshTokenExpiry = new Date(Date.now() + REFRESH_TOKEN_MAX_AGE);
 
     const insertRefrehToken = await insertRefreshToken(
       newUser.user_id,
@@ -95,17 +119,15 @@ const register = async (req, res, next) => {
     }
 
     res.cookie("accessToken", accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 15 * 60 * 1000,
+      ...COOKIE_OPTIONS,
+      maxAge: ACCESS_TOKEN_MAX_AGE,
     });
     res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 30 * 24 * 60 * 60 * 1000,
+      ...COOKIE_OPTIONS,
+      maxAge: REFRESH_TOKEN_MAX_AGE,
     });
+
+    logger.info("User registered", { user: newUser.user_id });
 
     res.status(201).json({
       success: true,
@@ -113,7 +135,6 @@ const register = async (req, res, next) => {
       user: newUser,
     });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -138,7 +159,7 @@ const login = async (req, res, next) => {
       validators.isValidEmail,
     );
     if (!validators.isValidPassword(password)) {
-      const error = new Error("Password must be between 8 and 72 characters");
+      const error = new Error("Password must be at least 8 characters and at most 72 bytes");
       error.status = 400;
       throw error;
     }
@@ -150,12 +171,15 @@ const login = async (req, res, next) => {
       foundedUser && (await comparePassword(password, foundedUser.password));
 
     if (!isPasswordMatch) {
+      // fara email in log; user doar daca exista contul (parola gresita)
+      logger.warn("Login failed", { user: foundedUser?.user_id, ip: req.ip });
       return res
         .status(401)
         .json({ success: false, message: "Invalid credentials" });
     }
 
     if (!foundedUser.is_active) {
+      logger.warn("Login on a disabled account", { user: foundedUser.user_id });
       return res
         .status(403)
         .json({ success: false, message: "Account is disabled" });
@@ -176,21 +200,19 @@ const login = async (req, res, next) => {
     await insertRefreshToken(
       foundedUser.user_id,
       refreshToken,
-      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      new Date(Date.now() + REFRESH_TOKEN_MAX_AGE),
     );
 
     res.cookie("accessToken", accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 15 * 60 * 1000,
+      ...COOKIE_OPTIONS,
+      maxAge: ACCESS_TOKEN_MAX_AGE,
     });
     res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 30 * 24 * 60 * 60 * 1000,
+      ...COOKIE_OPTIONS,
+      maxAge: REFRESH_TOKEN_MAX_AGE,
     });
+
+    logger.info("User logged in", { user: foundedUser.user_id });
 
     delete foundedUser.password;
     delete foundedUser.is_active;
@@ -201,24 +223,24 @@ const login = async (req, res, next) => {
       user: foundedUser,
     });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
 
 const updateUserInfo = async (req, res, next) => {
   try {
-    const { username, currency, language, completeOnboarding } =
+    const { username, currency, language, completeOnboarding, completeTour } =
       req.body ?? {};
 
     if (
       username === undefined &&
       currency === undefined &&
       language === undefined &&
-      completeOnboarding === undefined
+      completeOnboarding === undefined &&
+      completeTour === undefined
     ) {
       const error = new Error(
-        "Provide at least one field to update: username, currency, language, completeOnboarding",
+        "Provide at least one field to update: username, currency, language, completeOnboarding, completeTour",
       );
       error.status = 400;
       throw error;
@@ -238,6 +260,15 @@ const updateUserInfo = async (req, res, next) => {
         error.status = 400;
         throw error;
       }
+    }
+
+    // turul ghidat al unei pagini, terminat sau sarit
+    if (completeTour !== undefined && !ALLOWED_TOURS.includes(completeTour)) {
+      const error = new Error(
+        `completeTour must be one of: ${ALLOWED_TOURS.join(", ")}`,
+      );
+      error.status = 400;
+      throw error;
     }
 
     // optional; lipsa = ramane numele curent
@@ -277,11 +308,11 @@ const updateUserInfo = async (req, res, next) => {
       currency,
       language,
       completeOnboarding: completeOnboarding === true,
+      completeTour: completeTour ?? null,
     });
 
     res.status(200).json({ success: true, user: updatedUser });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -294,28 +325,20 @@ const logout = async (req, res, next) => {
       await deleteRefreshToken(refreshToken);
     }
 
-    res.clearCookie("accessToken", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-    });
-
-    res.clearCookie("refreshToken", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-    });
+    res.clearCookie("accessToken", COOKIE_OPTIONS);
+    res.clearCookie("refreshToken", COOKIE_OPTIONS);
 
     // 204 si cand nu exista sesiune: logout-ul e idempotent
     return res.status(204).end();
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
 
-// POST /auth/refresh  emite un access token nou pe baza cookie-ului refreshToken
-// refresh token-ul ramane acelasi (valabil 30 de zile de la login)
+// POST /auth/refresh  emite un access token nou si un refresh token nou
+// (rotatie): cel vechi e marcat ca inlocuit. Sesiunea e glisanta: 30 de zile
+// de la ultimul refresh. Un token inlocuit folosit din nou dupa perioada de
+// gratie (ROTATION_GRACE_SECONDS) inchide toate sesiunile userului
 const refresh = async (req, res, next) => {
   try {
     const refreshToken = req.cookies.refreshToken;
@@ -343,6 +366,20 @@ const refresh = async (req, res, next) => {
         .json({ success: false, message: "Invalid or expired refresh token" });
     }
 
+    if (storedToken.reused) {
+      // un refresh token deja inlocuit a fost folosit din nou: probabil furat
+      logger.warn("Refresh token reuse, all sessions closed", {
+        user: storedToken.user_id,
+        ip: req.ip,
+      });
+      await deleteUserRefreshTokens(storedToken.user_id);
+      res.clearCookie("accessToken", COOKIE_OPTIONS);
+      res.clearCookie("refreshToken", COOKIE_OPTIONS);
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid or expired refresh token" });
+    }
+
     // plan_type luat din db, ca sa prinda eventuale schimbari de plan
     const user = await fetchUserInfoById(decoded.user_id);
     if (!user || !user.is_active) {
@@ -351,22 +388,32 @@ const refresh = async (req, res, next) => {
         .json({ success: false, message: "User not found" });
     }
 
-    const accessToken = createAccesToken({
+    const payload = {
       user_id: user.user_id,
       email: user.email,
       plan_type: user.plan_type,
-    });
+    };
+    const accessToken = createAccesToken(payload);
+    const newRefreshToken = createRefreshToken(payload);
+
+    await rotateRefreshToken(
+      refreshToken,
+      user.user_id,
+      newRefreshToken,
+      new Date(Date.now() + REFRESH_TOKEN_MAX_AGE),
+    );
 
     res.cookie("accessToken", accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 15 * 60 * 1000,
+      ...COOKIE_OPTIONS,
+      maxAge: ACCESS_TOKEN_MAX_AGE,
+    });
+    res.cookie("refreshToken", newRefreshToken, {
+      ...COOKIE_OPTIONS,
+      maxAge: REFRESH_TOKEN_MAX_AGE,
     });
 
     res.status(200).json({ success: true, message: "Token refreshed" });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -410,7 +457,7 @@ const updateUserPassword = async (req, res, next) => {
     }
 
     if (!validators.isValidPassword(newPassword)) {
-      const error = new Error("Password must be between 8 and 72 characters");
+      const error = new Error("Password must be at least 8 characters and at most 72 bytes");
       error.status = 400;
       throw error;
     }
@@ -437,9 +484,9 @@ const updateUserPassword = async (req, res, next) => {
       req.cookies.refreshToken,
     );
 
+    logger.info("Password changed", { user: req.user.user_id });
     res.status(204).end();
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -479,10 +526,10 @@ const resetData = async (req, res, next) => {
 
     const user = await fetchUserInfoById(req.user.user_id);
     await resetUserData(req.user.user_id, user?.language ?? "ro");
+    logger.info("User data reset", { user: req.user.user_id });
 
     res.status(204).end();
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -495,18 +542,13 @@ const deleteAccount = async (req, res, next) => {
     if (failed) return failed;
 
     await deleteUserAccount(req.user.user_id);
+    logger.info("Account deleted", { user: req.user.user_id });
 
-    const cookieOptions = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-    };
-    res.clearCookie("accessToken", cookieOptions);
-    res.clearCookie("refreshToken", cookieOptions);
+    res.clearCookie("accessToken", COOKIE_OPTIONS);
+    res.clearCookie("refreshToken", COOKIE_OPTIONS);
 
     res.status(204).end();
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };

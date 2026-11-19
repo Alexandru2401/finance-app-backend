@@ -7,6 +7,8 @@ import {
   getBudgetTrend,
   getByCategory,
   getBudgetHealth,
+  getBudgetCosts,
+  getBudgetForecast,
 } from "../controllers/budget.controller.js";
 
 const budgetRouter = Router();
@@ -19,5 +21,7 @@ budgetRouter.get("/spending/top", getTopSpending);
 budgetRouter.get("/budget-trend", getBudgetTrend);
 budgetRouter.get("/by-category", getByCategory);
 budgetRouter.get("/health", getBudgetHealth);
+budgetRouter.get("/costs", getBudgetCosts);
+budgetRouter.get("/forecast", getBudgetForecast);
 
 export default budgetRouter;

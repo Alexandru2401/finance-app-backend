@@ -3,6 +3,7 @@ import cookieParser from "cookie-parser";
 import { BASE_PATH, CLIENT_URL } from "./config/env.js";
 import cors from "cors";
 import morgan from "morgan";
+import { httpStream } from "./utils/logger.js";
 import helmet from "helmet";
 
 import authRouter from "./routes/auth.routes.js";
@@ -16,10 +17,12 @@ import notificationsRouter from "./routes/notifications.routes.js";
 
 const app = express();
 
-// Render pune un proxy în fața aplicației; fără asta req.ip ar fi IP-ul proxy-ului
-// si rate limiting-ul ar bloca toti userii deodata.
-// Cand activezi proxy-ul prin Netlify (_redirects), schimba in 2.
-app.set("trust proxy", 1);
+// Lantul in productie: user -> Netlify (proxy /api/*) -> Render -> app.
+// 2 = req.ip e IP-ul userului (al doilea de la dreapta din X-Forwarded-For);
+// cu 1 ar fi IP-ul serverului Netlify si rate limiting-ul per IP ar fi comun
+// pentru toti userii care trec prin el (security.md 1.1).
+// Daca se scoate proxy-ul Netlify, se trece inapoi pe 1.
+app.set("trust proxy", 2);
 
 const allowedOrigins = CLIENT_URL?.split(",").map((url) => url.trim()) ?? [];
 
@@ -35,7 +38,16 @@ app.use(
 
 app.use(express.json({ limit: "10kb" }));
 app.use(cookieParser());
-app.use(morgan("dev"));
+// o linie pe cerere, la nivelul http al logger-ului; fara query string (poate
+// contine textul cautat de user) si fara body. user = user_id dupa validateToken
+morgan.token("path", (req) => req.originalUrl.split("?")[0]);
+morgan.token("user", (req) => req.user?.user_id ?? "-");
+app.use(
+  morgan(
+    ":method :path :status :res[content-length] - :response-time ms ip=:remote-addr user=:user",
+    { stream: httpStream },
+  ),
+);
 
 // TEMPORAR (security.md 1.1): arata lantul de proxy-uri, ca sa aflam valoarea
 // corecta pentru "trust proxy". Se sterge imediat dupa verificare.

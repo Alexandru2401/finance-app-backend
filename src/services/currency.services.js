@@ -1,3 +1,4 @@
+import { logger } from "../utils/logger.js";
 // cursul oficial BNR - gratuit, fara cheie API, exprimat in RON
 // atentie: www.bnr.ro/nbrfxrates.xml face redirect pe homepage, feed-ul e pe curs.bnr.ro
 const BNR_URL = "https://curs.bnr.ro/nbrfxrates.xml";
@@ -17,6 +18,9 @@ const getRatesToRon = async () => {
     if (!res.ok) throw new Error(`BNR responded with ${res.status}`);
     xml = await res.text();
   } catch (err) {
+    logger.warn(`BNR exchange rates unavailable: ${err.message}`, {
+      cached: Boolean(cache.rates),
+    });
     // daca BNR nu raspunde dar avem un curs mai vechi, il folosim pe ala
     if (cache.rates) return cache.rates;
     const error = new Error("Exchange rates are unavailable, try again later");

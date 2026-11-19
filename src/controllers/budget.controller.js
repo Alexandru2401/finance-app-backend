@@ -1,3 +1,4 @@
+import { TYPES } from "../utils/types.js";
 import {
   fetchBudgetSummary,
   fetchTargetSummary,
@@ -5,11 +6,14 @@ import {
   fetchBudgetTrend,
   fetchByCategory,
   fetchHealthTotals,
+  fetchFixedCosts,
+  fetchVariableCosts,
 } from "../services/budget.services.js";
 import { fetchTarget } from "../services/target.services.js";
 import { parsePeriod, PERIOD_PRESETS } from "../utils/period.js";
 import { targetNet } from "../utils/targetNet.js";
 import { computeBudgetHealth } from "../utils/budgetHealth.js";
+import { withShares, savingsForecast } from "../utils/analytics.js";
 import { todayInRomania } from "../utils/recurring.js";
 import validators from "../validators/inputValidators.js";
 
@@ -38,7 +42,9 @@ const getBudgetSummary = async (req, res, next) => {
     // normalizezi in ceva usor de folosit pe frontend
     const summary = { income: 0, expense: 0, savings: 0 };
     for (const row of rows) {
-      summary[row.type] = Number(row.total);
+      // cheile raspunsului urmeaza coloanele din budget_targets (expense)
+      const key = row.type === "expenses" ? "expense" : row.type;
+      summary[key] = Number(row.total);
     }
     // net = venituri - cheltuieli (economiile nu se scad)
     summary.net = summary.income - summary.expense;
@@ -60,7 +66,6 @@ const getBudgetSummary = async (req, res, next) => {
 
     res.status(200).json({ success: true, summary });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -74,7 +79,6 @@ const getTopSpending = async (req, res, next) => {
     const topExpenses = await fetchTopExpenses(req.user.user_id, 5, period);
     res.status(200).json({ success: true, topExpenses });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -96,21 +100,19 @@ const getBudgetTrend = async (req, res, next) => {
 
     res.status(200).json({ success: true, trend });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
 
-const TYPES = ["income", "expense", "savings"];
 
-// GET /budget/by-category?type=expense  (+ ?period= ca la summary; implicit luna curenta)
+// GET /budget/by-category?type=expenses  (+ ?period= ca la summary; implicit luna curenta)
 const getByCategory = async (req, res, next) => {
   try {
     const { type } = req.query;
     if (!TYPES.includes(type)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid type. Must be one of: income, expense, savings",
+        message: "Invalid type. Must be one of: income, expenses, savings",
       });
     }
 
@@ -126,7 +128,6 @@ const getByCategory = async (req, res, next) => {
 
     res.status(200).json({ success: true, categories });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -185,12 +186,71 @@ const getBudgetHealth = async (req, res, next) => {
       health: { ...health, month: current, day },
     });
   } catch (err) {
-    console.log(err.message || err);
+    next(err);
+  }
+};
+
+// GET /budget/costs  (?period= ca la summary; implicit luna curenta)
+// fixed = regulile recurente active de cheltuieli (nu depind de period)
+// variable = cele mai mari 5 categorii de cheltuieli din period, fara cele recurente
+// pct = cota din totalul listei; total = suma randurilor din lista
+const VARIABLE_COSTS_LIMIT = 5;
+
+const getBudgetCosts = async (req, res, next) => {
+  try {
+    const period = parsePeriod(req.query.period);
+    if (period === false) return invalidPeriod(res);
+
+    const [fixed, variable] = await Promise.all([
+      fetchFixedCosts(req.user.user_id),
+      fetchVariableCosts(req.user.user_id, VARIABLE_COSTS_LIMIT, period),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      costs: { fixed: withShares(fixed), variable: withShares(variable) },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// GET /budget/forecast  (?period= ca la budget-trend, implicit ultimele 6 luni; ?ahead=1-12, implicit 3)
+// economiile pe luni + prognoza = media ultimelor 3 luni din period
+const MAX_FORECAST_AHEAD = 12;
+
+const getBudgetForecast = async (req, res, next) => {
+  try {
+    const period = parsePeriod(req.query.period, "last-6");
+    if (period === false) return invalidPeriod(res);
+
+    const { ahead: aheadParam } = req.query;
+    const ahead = aheadParam === undefined ? 3 : Number(aheadParam);
+    if (!Number.isInteger(ahead) || ahead < 1 || ahead > MAX_FORECAST_AHEAD) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid ahead. Must be an integer between 1 and ${MAX_FORECAST_AHEAD}`,
+      });
+    }
+
+    const rows = await fetchBudgetTrend(req.user.user_id, period);
+    const trend = rows.map((row) => ({
+      month: row.month,
+      savings: Number(row.savings),
+    }));
+
+    res.status(200).json({
+      success: true,
+      forecast: savingsForecast(trend, ahead),
+    });
+  } catch (err) {
     next(err);
   }
 };
 
 export {
+  getBudgetCosts,
+  getBudgetForecast,
   getBudgetSummary,
   getTopSpending,
   getBudgetTrend,
