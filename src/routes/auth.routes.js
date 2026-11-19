@@ -13,12 +13,14 @@ import {
 } from "../controllers/auth.controller.js";
 import { validateToken } from "../utils/jwtHelperFn.js";
 import rateLimit from "../middleware/rateLimit.middleware.js";
+import verifyCaptcha from "../middleware/captcha.middleware.js";
 
 const authRouter = Router();
 
-authRouter.post("/register", rateLimit(5, 15), register);
+// captcha dupa rateLimit: cererile peste limita nu mai ajung la Cloudflare
+authRouter.post("/register", rateLimit(5, 15), verifyCaptcha, register);
 
-authRouter.post("/login", rateLimit(5, 15), login);
+authRouter.post("/login", rateLimit(5, 15), verifyCaptcha, login);
 
 authRouter.post("/refresh", rateLimit(20, 15), refresh);
 

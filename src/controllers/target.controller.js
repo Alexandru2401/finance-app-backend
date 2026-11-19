@@ -25,7 +25,7 @@ const formatTarget = (row) => {
     income,
     expense,
     savings,
-    netBalance: targetNet(income, expense),
+    net: targetNet(income, expense), // acelasi nume ca la /budget/summary
   };
 };
 
@@ -44,7 +44,6 @@ const getTarget = async (req, res, next) => {
 
     res.status(200).json({ success: true, target: formatTarget(row) });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -56,13 +55,14 @@ const getAllTargets = async (req, res, next) => {
 
     res.status(200).json({ success: true, targets: rows.map(formatTarget) });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
 
 // POST /target  body: { month?, income?, expense?, savings? }
 // creeaza target-ul lunii sau il actualizeaza daca exista deja
+// fiecare camp: numar >= 0 = noua valoare; null sau "" = fara target (sterge
+// valoarea); netrimis = pastreaza valoarea (la o luna noua: din luna dinainte)
 const saveTarget = async (req, res, next) => {
   try {
     const body = req.body ?? {};
@@ -78,7 +78,11 @@ const saveTarget = async (req, res, next) => {
     const values = {};
     for (const field of FIELDS) {
       const value = body[field];
-      if (value === undefined || value === null || value === "") continue;
+      if (value === undefined) continue;
+      if (value === null || value === "") {
+        values[field] = null;
+        continue;
+      }
 
       const numeric = Number(value);
       if (!validators.isValidAmount(numeric)) {
@@ -103,7 +107,6 @@ const saveTarget = async (req, res, next) => {
       .status(row.inserted ? 201 : 200)
       .json({ success: true, target: formatTarget(row) });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -191,7 +194,6 @@ const exportTargetHistory = async (req, res, next) => {
     // BOM: Excel afiseaza corect diacriticele
     res.status(200).send(`${BOM}${lines.join("\r\n")}\r\n`);
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };

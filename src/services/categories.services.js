@@ -93,7 +93,17 @@ const deleteUserCategory = async (catId, userId) => {
   return response.rows[0];
 };
 
+// pt limita de categorii per user (utils/limits.js)
+const countCategories = async (userId) => {
+  const response = await pool.query(
+    "SELECT COUNT(*)::int AS count FROM categories WHERE user_id = $1",
+    [userId],
+  );
+  return response.rows[0].count;
+};
+
 export {
+  countCategories,
   fetchAllCategories,
   addNewCategory,
   insertStarterCategories,

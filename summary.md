@@ -8,7 +8,7 @@ FE-ul face un singur request, GET /budget/summary?month=YYYY-MM. BE-ul rulează 
 • Sumele reale vin din budget_items: suma pe income / expense / savings pentru intervalul cerut.
 • Target-ul vine din budget_targets: pentru fiecare lună din interval, cel mai recent rând cu month <= luna respectivă (carry-over). Un target setat într-o lună rămâne valabil până îl schimbi. La un interval de mai multe luni (last-3, this-year), target-urile lunilor se adună.
 • Procentul se calculează pe BE: real / target * 100, rotunjit la 2 zecimale.
-• net = income - expense (economiile nu se scad), la sumele reale, la target și la netBalance din /target.
+• net = income - expense (economiile nu se scad), la sumele reale, la target și la net din /target.
 • Target-ul se setează din GET / POST /target (vezi mai jos), separat de summary.
 • Pe FE, un singur useQuery cu queryKey: ["summary", month]. Toate cardurile citesc din el și se actualizează când se schimbă luna.
 De făcut acasă
@@ -31,7 +31,7 @@ Query-uri și cod
 Query 1: sumele reale pe lună, din budget_items. FILTER adună separat pe fiecare tip, iar COALESCE pune 0 când nu există niciun item.
 SELECT
   COALESCE(SUM(amount) FILTER (WHERE type = 'income'), 0)  AS income,
-  COALESCE(SUM(amount) FILTER (WHERE type = 'expense'), 0) AS expense,
+  COALESCE(SUM(amount) FILTER (WHERE type = 'expenses'), 0) AS expense,
   COALESCE(SUM(amount) FILTER (WHERE type = 'savings'), 0) AS savings
 FROM budget_items
 WHERE user_id = '11111111-1111-1111-1111-111111111111'
@@ -83,12 +83,13 @@ Target-uri: GET /target, GET /target/all și POST /target
 • GET /target?month=YYYY-MM (implicit luna curentă) întoarce mereu un rând. Dacă luna nu are target propriu, îl moștenește pe ultimul dinainte, fără să-l salveze în DB: id e null, iar inheritedFrom e luna din care vine.
 • POST /target cu body { month?, income?, expense?, savings? } face upsert pe (user_id, month). Câmpurile trebuie să fie numere >= 0, cu maximum 2 zecimale și cel mult 9999999999.99, și e obligatoriu cel puțin unul.
 • La o lună nouă (201), câmpurile netrimise se copiază din ultimul target dinainte. La o lună existentă (200), câmpurile netrimise își păstrează valoarea.
+• Un câmp trimis ca null (sau "") șterge target-ul pentru el: rămâne fără target în luna respectivă și în lunile care o moștenesc. FE-ul trimite mereu toate cele trei câmpuri (gol = null).
 Exemplu de răspuns pentru GET /target?month=2026-11 (fără target propriu în noiembrie):
 {
   "success": true,
   "target": {
     "id": null, "month": "2026-11-01", "inheritedFrom": "2026-10-01",
-    "income": 2000, "expense": 500, "savings": 500, "netBalance": 1500
+    "income": 2000, "expense": 500, "savings": 500, "net": 1500
   }
 }
 Cazuri limită

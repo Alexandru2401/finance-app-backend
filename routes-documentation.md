@@ -17,6 +17,8 @@ npx supabase migration list
   - [DELETE /auth/account](#delete-authaccount)
 - [Budget](#budget)
   - [GET /budget/health](#get-budgethealth)
+  - [GET /budget/costs](#get-budgetcosts)
+  - [GET /budget/forecast](#get-budgetforecast)
 - [Recurring](#recurring)
   - [GET /recurring](#get-recurring)
   - [POST /recurring](#post-recurring)
@@ -137,10 +139,14 @@ Fără body. Răspunsul e același și dacă nu există o sesiune activă (logou
     "is_active": true,
     "created_at": "2026-10-30T04:20:54.505Z",
     "language": "ro",
-    "currency": "RON"
+    "currency": "RON",
+    "has_completed_onboarding": true,
+    "completed_tours": ["overview"]
   }
 }
 ```
+
+`completed_tours` are paginile (`overview`, `budget`, `transactions`, `analytics`, `settings`) al căror tur ghidat userul l-a terminat sau sărit.
 
 ---
 
@@ -157,6 +163,8 @@ Fără body. Răspunsul e același și dacă nu există o sesiune activă (logou
   "language": "ro"
 }
 ```
+
+`"completeTour": "budget"` (singur sau cu alte câmpuri) adaugă pagina în `completed_tours`, o singură dată; alte valori decât paginile de mai sus dau `400`. Nu se poate anula.
 
 **Response** `200 OK`
 
@@ -243,6 +251,76 @@ Fără body. Răspunsul e același și dacă nu există o sesiune activă (logou
 
 ---
 
+### GET /budget/costs
+
+🔒 **Costuri fixe și variabile** (pagina Analytics). Limită: comună cu restul `/budget`.
+
+**Query:** `period` (opțional, ca la `/budget/summary`; implicit luna curentă). Valori: `this-month`, `last-month`, `last-3`, `last-6`, `last-12`, `all`, `YYYY-MM:YYYY-MM`, `YYYY-MM-DD:YYYY-MM-DD`.
+
+**Response** `200 OK`
+
+```json
+{
+  "success": true,
+  "costs": {
+    "fixed": {
+      "items": [
+        { "recurring_id": "0b7c3f0e-…", "category_id": "5f0f8a3e-…", "category": "Locuință", "amount": 1200, "pct": 80 },
+        { "recurring_id": "1a2b3c4d-…", "category_id": "6a1b2c3d-…", "category": "Internet", "amount": 300, "pct": 20 }
+      ],
+      "total": 1500
+    },
+    "variable": {
+      "items": [
+        { "category_id": "7b2c3d4e-…", "category": "Mâncare", "amount": 950.5, "pct": 100 }
+      ],
+      "total": 950.5
+    }
+  }
+}
+```
+
+- `fixed`: regulile recurente **active** de cheltuieli, cea mai mare prima. Nu depind de `period`.
+- `variable`: cele mai mari 5 categorii de cheltuieli din `period`, fără categoriile cu regulă recurentă activă. `category_id` și `category` sunt `null` pentru tranzacțiile cu categoria ștearsă.
+- `pct`: cota rândului din `total` (0–100, întreg). `total` = suma rândurilor din listă.
+
+**Erori:** `400` (`period` invalid).
+
+---
+
+### GET /budget/forecast
+
+🔒 **Economii + prognoză** (pagina Analytics). Limită: comună cu restul `/budget`.
+
+**Query:**
+- `period` (opțional, ca la `/budget/budget-trend`; implicit `last-6`);
+- `ahead` (opțional, întreg 1–12, implicit 3): câte luni de prognoză.
+
+**Response** `200 OK`
+
+```json
+{
+  "success": true,
+  "forecast": {
+    "points": [
+      { "month": "2026-10", "savings": 400, "forecast": null },
+      { "month": "2026-11", "savings": 500, "forecast": 500 },
+      { "month": "2026-12", "savings": null, "forecast": 433.33 }
+    ],
+    "average": 433.33
+  }
+}
+```
+
+- Câte un punct pentru fiecare lună din `period` (economiile = tranzacțiile `savings`), apoi `ahead` luni de prognoză.
+- Prognoza = media economiilor din ultimele 3 luni ale intervalului (`average`).
+- `forecast` e setat și pe ultima lună reală (egal cu `savings`), ca linia de prognoză să pornească de acolo; pe lunile de prognoză `savings` e `null`.
+- Fără nicio lună: `points: []`, `average: null`.
+
+**Erori:** `400` (`period` sau `ahead` invalid).
+
+---
+
 ## Recurring
 
 Regulile după care o tranzacție se adaugă automat în fiecare lună (vezi `../notification.md`). Toate rutele sunt 🔒. Limită: 100 de cereri / 15 min per user.
@@ -252,7 +330,7 @@ Obiectul `recurring`:
 ```json
 {
   "id": "0b7c3f0e-2a1d-4a52-9d0e-6f1f2b9a7c11",
-  "type": "expense",
+  "type": "expenses",
   "category_id": "5f0f8a3e-1c2b-4d7a-9e3f-2a1b0c9d8e7f",
   "category_name": "Locuință",
   "amount": 1200,
@@ -290,7 +368,7 @@ Obiectul `recurring`:
 
 ```json
 {
-  "type": "expense",
+  "type": "expenses",
   "category_id": "5f0f8a3e-1c2b-4d7a-9e3f-2a1b0c9d8e7f",
   "amount": 1200,
   "notes": "Chirie",
@@ -312,7 +390,7 @@ Obiectul `recurring`:
   "recurring": { "...": "obiectul creat" },
   "transaction": {
     "item_id": "9a1c2b3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
-    "type": "expense",
+    "type": "expenses",
     "category_id": "5f0f8a3e-1c2b-4d7a-9e3f-2a1b0c9d8e7f",
     "category_name": "Locuință",
     "amount": 1200,
@@ -326,7 +404,7 @@ Obiectul `recurring`:
 
 `transaction` apare doar când s-a trimis `date`.
 
-**Erori:** `400` (câmp lipsă sau invalid, categorie de alt tip), `404` (categoria nu există / nu e a userului), `409` (categoria are deja o regulă: „This category already has a recurring item”, sau peste 50 de reguli).
+**Erori:** `400` (câmp lipsă sau invalid, categorie de alt tip), `404` (categoria nu există / nu e a userului), `409` (categoria are deja o regulă: „This category already has a recurring item”), `422` (`code: "LIMIT_REACHED"`: peste 50 de reguli sau, cu `date`, peste 20.000 de tranzacții).
 
 O categorie are **cel mult o regulă**. Ștergerea categoriei șterge și regula ei; tranzacțiile adăugate deja rămân.
 
@@ -340,7 +418,7 @@ O categorie are **cel mult o regulă**. Ștergerea categoriei șterge și regula
 
 ```json
 {
-  "type": "expense",
+  "type": "expenses",
   "category_id": "5f0f8a3e-1c2b-4d7a-9e3f-2a1b0c9d8e7f",
   "amount": 1250,
   "notes": null,
@@ -386,7 +464,7 @@ Obiectul `notification`:
   "data": {
     "recurring_id": "0b7c3f0e-2a1d-4a52-9d0e-6f1f2b9a7c11",
     "item_id": "9a1c2b3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
-    "type": "expense",
+    "type": "expenses",
     "amount": 1200,
     "category": "Locuință",
     "date": "2026-12-01"

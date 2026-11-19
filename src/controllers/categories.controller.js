@@ -1,4 +1,6 @@
+import { TYPES } from "../utils/types.js";
 import validators from "../validators/inputValidators.js";
+import { MAX_CATEGORIES_PER_USER, limitReached } from "../utils/limits.js";
 import {
   fetchAllCategories,
   addNewCategory,
@@ -6,22 +8,31 @@ import {
   fetchUserCategoryById,
   renameUserCategory,
   deleteUserCategory,
+  countCategories,
 } from "../services/categories.services.js";
 
+// GET /categories  (?type=income|expenses|savings)
 const getAllCategories = async (req, res, next) => {
   try {
+    const { type } = req.query;
+    // altfel valoarea ajunge in enum-ul din DB si da 500
+    if (type !== undefined && !TYPES.includes(type)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid type. Must be one of: income, expenses, savings",
+      });
+    }
+
     const categories = await fetchAllCategories(
       req.user.user_id,
-      req.query.type,
+      type,
     );
     res.status(200).json({ success: true, categories });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
 
-const TYPES = ["income", "expense", "savings"];
 
 // POST /categories  body: { type, name }
 const createNewCategory = async (req, res, next) => {
@@ -31,7 +42,7 @@ const createNewCategory = async (req, res, next) => {
     if (!TYPES.includes(type)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid type. Must be one of: income, expense, savings",
+        message: "Invalid type. Must be one of: income, expenses, savings",
       });
     }
 
@@ -54,6 +65,13 @@ const createNewCategory = async (req, res, next) => {
         .json({ success: false, message: "Category already exists" });
     }
 
+    if ((await countCategories(req.user.user_id)) >= MAX_CATEGORIES_PER_USER) {
+      return limitReached(
+        res,
+        `You can have at most ${MAX_CATEGORIES_PER_USER} categories`,
+      );
+    }
+
     const category = await addNewCategory(req.user.user_id, type, cleanName);
 
     return res.status(201).json({ success: true, category });
@@ -63,7 +81,6 @@ const createNewCategory = async (req, res, next) => {
         .status(409)
         .json({ success: false, message: "Category already exists" });
     }
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -128,7 +145,6 @@ const updateCategory = async (req, res, next) => {
         .status(409)
         .json({ success: false, message: "Category already exists" });
     }
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -153,7 +169,6 @@ const deleteCategory = async (req, res, next) => {
 
     return res.status(200).json({ success: true, category: deleted });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };

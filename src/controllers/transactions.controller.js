@@ -1,9 +1,12 @@
-import validators from "../validators/inputValidators.js";
+import { TYPES } from "../utils/types.js";
+import validators, { NOTES_MAX_LENGTH } from "../validators/inputValidators.js";
+import { MAX_TRANSACTIONS_PER_USER, limitReached } from "../utils/limits.js";
 import {
   fetchTransactions,
   fetchTransactionsForExport,
   fetchTransactionYears,
   fetchCategoryForUser,
+  countTransactions,
   addNewTransaction,
   fetchTransactionById,
   updateTransactionById,
@@ -13,7 +16,27 @@ import {
 const INVALID_AMOUNT =
   "Amount must be greater than 0, with at most 2 decimals and at most 9999999999.99";
 
+// valorile acceptate in ?sort= (vezi buildTransactionFilters)
+const SORTS = ["newest", "oldest", "highest", "lowest"];
+
+// intreg in [min, max] dintr-un parametru din query; null daca e invalid
+const toIntInRange = (value, min, max) => {
+  if (typeof value !== "string" || !/^\d+$/.test(value)) return null;
+  const num = Number(value);
+  return num >= min && num <= max ? num : null;
+};
+
+// suma >= 0 dintr-un parametru din query; null daca e invalida
+const toFilterAmount = (value) => {
+  if (typeof value !== "string" || value.trim() === "") return null;
+  const num = Number(value);
+  return validators.isValidAmount(num) ? num : null;
+};
+
 // filtrele din query string, comune pentru GET /transactions si /export
+// lipsa (sau "" / "all" la type) = fara filtru; o valoare invalida da 400,
+// nu 500 din Postgres (ex. ?minAmount=abc, ?category_id=x, ?year=2026a)
+// intoarce { filters } sau { error } (mesajul pentru 400)
 const parseFilters = (query) => {
   const {
     search,
@@ -26,24 +49,71 @@ const parseFilters = (query) => {
     maxAmount,
     sort,
   } = query;
-  return {
-    search,
-    type,
-    categoryId: category_id,
-    year: year ? Number(year) : undefined,
-    month: month ? Number(month) : undefined,
-    day: day ? Number(day) : undefined,
-    minAmount: minAmount != null ? Number(minAmount) : undefined,
-    maxAmount: maxAmount != null ? Number(maxAmount) : undefined,
-    sort,
-  };
+  const present = (value) => value !== undefined && value !== "";
+  const filters = {};
+
+  if (present(search)) {
+    if (typeof search !== "string") return { error: "Invalid search" };
+    filters.search = search;
+  }
+  if (present(type) && type !== "all") {
+    if (!TYPES.includes(type)) {
+      return {
+        error: "Invalid type. Must be one of: all, income, expenses, savings",
+      };
+    }
+    filters.type = type;
+  }
+  if (present(category_id)) {
+    if (
+      typeof category_id !== "string" ||
+      !validators.isValidUUID(category_id)
+    ) {
+      return { error: "Invalid category_id" };
+    }
+    filters.categoryId = category_id;
+  }
+
+  const ranges = { year: [1, 9999], month: [1, 12], day: [1, 31] };
+  for (const [key, value] of Object.entries({ year, month, day })) {
+    if (!present(value)) continue;
+    const num = toIntInRange(value, ...ranges[key]);
+    if (num === null) {
+      return {
+        error: `Invalid ${key}. Must be an integer between ${ranges[key].join(" and ")}`,
+      };
+    }
+    filters[key] = num;
+  }
+
+  for (const [key, value] of Object.entries({ minAmount, maxAmount })) {
+    if (!present(value)) continue;
+    const num = toFilterAmount(value);
+    if (num === null) {
+      return {
+        error: `Invalid ${key}. Must be a number >= 0, with at most 2 decimals`,
+      };
+    }
+    filters[key] = num;
+  }
+
+  if (present(sort)) {
+    if (!SORTS.includes(sort)) {
+      return { error: `Invalid sort. Must be one of: ${SORTS.join(", ")}` };
+    }
+    filters.sort = sort;
+  }
+
+  return { filters };
 };
 
-// GET /transactions  (?type=expense&category_id=..&year=..&month=..&day=..&minAmount=..&maxAmount=..&search=..&sort=newest&page=1&limit=15)
+// GET /transactions  (?type=expenses&category_id=..&year=..&month=..&day=..&minAmount=..&maxAmount=..&search=..&sort=newest&page=1&limit=15)
 // limit implicit si maxim 15
 const getTransactions = async (req, res, next) => {
   try {
     const { page, limit } = req.query;
+    const { filters, error } = parseFilters(req.query);
+    if (error) return res.status(400).json({ success: false, message: error });
 
     const {
       rows,
@@ -53,7 +123,7 @@ const getTransactions = async (req, res, next) => {
       perPage,
       totalPages,
     } = await fetchTransactions(req.user.user_id, {
-      ...parseFilters(req.query),
+      ...filters,
       page,
       perPage: limit,
     });
@@ -68,7 +138,6 @@ const getTransactions = async (req, res, next) => {
       totalPages,
     });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -76,14 +145,16 @@ const getTransactions = async (req, res, next) => {
 // ---- CSV ----
 const CSV_LABELS = {
   ro: {
-    header: ["Data", "Tip", "Categorie", "Sumă", "Notițe"],
-    types: { income: "Venit", expense: "Cheltuială", savings: "Economie" },
+    header: ["Data", "Tip", "Categorie", "Sumă", "Notițe", "Recurentă"],
+    types: { income: "Venit", expenses: "Cheltuială", savings: "Economie" },
     uncategorized: "Fără categorie",
+    recurring: { yes: "Da", no: "Nu" },
   },
   en: {
-    header: ["Date", "Type", "Category", "Amount", "Notes"],
-    types: { income: "Income", expense: "Expense", savings: "Savings" },
+    header: ["Date", "Type", "Category", "Amount", "Notes", "Recurring"],
+    types: { income: "Income", expenses: "Expense", savings: "Savings" },
     uncategorized: "Uncategorized",
+    recurring: { yes: "Yes", no: "No" },
   },
 };
 
@@ -104,11 +175,11 @@ const csvCell = (value, { userText = false } = {}) => {
 // afiseze corect diacriticele
 const exportTransactions = async (req, res, next) => {
   try {
+    const { filters, error } = parseFilters(req.query);
+    if (error) return res.status(400).json({ success: false, message: error });
+
     const labels = CSV_LABELS[req.query.lang] ?? CSV_LABELS.en;
-    const rows = await fetchTransactionsForExport(
-      req.user.user_id,
-      parseFilters(req.query),
-    );
+    const rows = await fetchTransactionsForExport(req.user.user_id, filters);
 
     const lines = [
       labels.header.join(","),
@@ -119,6 +190,8 @@ const exportTransactions = async (req, res, next) => {
           csvCell(r.category_name ?? labels.uncategorized, { userText: true }),
           csvCell(r.amount.toFixed(2)),
           csvCell(r.notes, { userText: true }),
+          // generata dintr-o regula recurenta
+          csvCell(r.recurring_id ? labels.recurring.yes : labels.recurring.no),
         ].join(","),
       ),
     ];
@@ -131,7 +204,6 @@ const exportTransactions = async (req, res, next) => {
     );
     res.status(200).send(`${BOM}${lines.join("\r\n")}\r\n`);
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -143,12 +215,9 @@ const getTransactionYears = async (req, res, next) => {
     const years = await fetchTransactionYears(req.user.user_id);
     res.status(200).json({ success: true, years });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
-
-const TYPE = ["income", "expense", "savings"];
 
 const { isValidDate } = validators;
 
@@ -164,10 +233,10 @@ const addTransaction = async (req, res, next) => {
       });
     }
 
-    if (!TYPE.includes(type)) {
+    if (!TYPES.includes(type)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid type. Must be one of: income, expense, savings",
+        message: "Invalid type. Must be one of: income, expenses, savings",
       });
     }
 
@@ -183,10 +252,10 @@ const addTransaction = async (req, res, next) => {
       });
     }
 
-    if (notes !== undefined && notes !== null && typeof notes !== "string") {
+    if (!validators.isValidNotes(notes)) {
       return res.status(400).json({
         success: false,
-        message: "Notes must be a string or null",
+        message: `Notes must be a string or null, at most ${NOTES_MAX_LENGTH} characters`,
       });
     }
 
@@ -204,6 +273,15 @@ const addTransaction = async (req, res, next) => {
       });
     }
 
+    if (
+      (await countTransactions(req.user.user_id)) >= MAX_TRANSACTIONS_PER_USER
+    ) {
+      return limitReached(
+        res,
+        `You can have at most ${MAX_TRANSACTIONS_PER_USER} transactions`,
+      );
+    }
+
     const transaction = await addNewTransaction(req.user.user_id, {
       type,
       amount: numericAmount,
@@ -218,7 +296,6 @@ const addTransaction = async (req, res, next) => {
       transaction: { ...transaction, category_name: category.name },
     });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -250,17 +327,17 @@ const updateTransaction = async (req, res, next) => {
     }
 
     // null sau "" sterge nota
-    if (notes !== undefined && notes !== null && typeof notes !== "string") {
+    if (!validators.isValidNotes(notes)) {
       return res.status(400).json({
         success: false,
-        message: "Notes must be a string or null",
+        message: `Notes must be a string or null, at most ${NOTES_MAX_LENGTH} characters`,
       });
     }
 
-    if (type !== undefined && !TYPE.includes(type)) {
+    if (type !== undefined && !TYPES.includes(type)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid type. Must be one of: income, expense, savings",
+        message: "Invalid type. Must be one of: income, expenses, savings",
       });
     }
 
@@ -342,7 +419,6 @@ const updateTransaction = async (req, res, next) => {
       transaction: { ...transaction, category_name: category?.name ?? null },
     });
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
@@ -368,7 +444,6 @@ const deleteTransaction = async (req, res, next) => {
 
     res.status(204).end();
   } catch (err) {
-    console.log(err.message || err);
     next(err);
   }
 };
