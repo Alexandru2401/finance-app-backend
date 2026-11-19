@@ -12,6 +12,7 @@ const REQUIRED_VARS = [
   "JWT_SECRET",
   "JWT_REFRESH_TOKEN",
   "CLIENT_URL",
+  "TURNSTILE_SECRET_KEY",
 ];
 
 const missing = REQUIRED_VARS.filter((name) => !process.env[name]?.trim());
@@ -44,4 +45,5 @@ export const {
   JWT_REFRESH_TOKEN,
   DATABASE_URL,
   CLIENT_URL,
+  TURNSTILE_SECRET_KEY,
 } = process.env;
