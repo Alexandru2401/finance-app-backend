@@ -49,6 +49,21 @@ app.use(
   ),
 );
 
+// TEMPORAR (security.md 1.1): arata lantul de proxy-uri, ca sa aflam valoarea
+// corecta pentru "trust proxy". Se sterge imediat dupa verificare.
+app.get(`${BASE_PATH}/debug-ip`, (req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({
+    ip: req.ip,
+    ips: req.ips,
+    socket: req.socket.remoteAddress,
+    xForwardedFor: req.get("x-forwarded-for") ?? null,
+    nfClientConnectionIp: req.get("x-nf-client-connection-ip") ?? null,
+    cfConnectingIp: req.get("cf-connecting-ip") ?? null,
+    trueClientIp: req.get("true-client-ip") ?? null,
+  });
+});
+
 app.use(`${BASE_PATH}/auth`, authRouter);
 app.use(`${BASE_PATH}/budget`, budgetRouter);
 app.use(`${BASE_PATH}/transactions`, transactionsRouter);
