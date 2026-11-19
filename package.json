@@ -30,6 +30,6 @@
     "eslint": "^10.1.0",
     "globals": "^17.4.0",
     "nodemon": "^3.1.14",
-    "supabase": "^2.118.0"
+    "supabase": "^3.1.0"
   }
 }
