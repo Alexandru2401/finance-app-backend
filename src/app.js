@@ -17,12 +17,14 @@ import notificationsRouter from "./routes/notifications.routes.js";
 
 const app = express();
 
-// Lantul in productie: user -> Netlify (proxy /api/*) -> Render -> app.
-// 2 = req.ip e IP-ul userului (al doilea de la dreapta din X-Forwarded-For);
-// cu 1 ar fi IP-ul serverului Netlify si rate limiting-ul per IP ar fi comun
-// pentru toti userii care trec prin el (security.md 1.1).
-// Daca se scoate proxy-ul Netlify, se trece inapoi pe 1.
-app.set("trust proxy", 2);
+// Lantul in productie (verificat 19 nov 2026 cu X-Forwarded-For):
+// user -> Netlify (intern + iesire AWS) -> Cloudflare (Render) -> Render -> app,
+// deci X-Forwarded-For = "user, netlify-intern, netlify, cloudflare, render".
+// 5 = req.ip e IP-ul userului (al cincilea de la dreapta); cu mai putin ar fi
+// IP-ul unui proxy si rate limiting-ul per IP ar fi comun pentru toti userii
+// care trec prin el (security.md 1.1).
+// Daca se schimba lantul (ex. se scoate proxy-ul Netlify), numarul se schimba.
+app.set("trust proxy", 5);
 
 const allowedOrigins = CLIENT_URL?.split(",").map((url) => url.trim()) ?? [];
 
