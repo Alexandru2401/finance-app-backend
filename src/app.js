@@ -3,6 +3,7 @@ import cookieParser from "cookie-parser";
 import { BASE_PATH, CLIENT_URL } from "./config/env.js";
 import cors from "cors";
 import morgan from "morgan";
+import { httpStream } from "./utils/logger.js";
 import helmet from "helmet";
 
 import authRouter from "./routes/auth.routes.js";
@@ -37,7 +38,16 @@ app.use(
 
 app.use(express.json({ limit: "10kb" }));
 app.use(cookieParser());
-app.use(morgan("dev"));
+// o linie pe cerere, la nivelul http al logger-ului; fara query string (poate
+// contine textul cautat de user) si fara body. user = user_id dupa validateToken
+morgan.token("path", (req) => req.originalUrl.split("?")[0]);
+morgan.token("user", (req) => req.user?.user_id ?? "-");
+app.use(
+  morgan(
+    ":method :path :status :res[content-length] - :response-time ms ip=:remote-addr user=:user",
+    { stream: httpStream },
+  ),
+);
 
 app.use(`${BASE_PATH}/auth`, authRouter);
 app.use(`${BASE_PATH}/budget`, budgetRouter);

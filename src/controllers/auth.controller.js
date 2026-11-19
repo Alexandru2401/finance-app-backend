@@ -1,5 +1,6 @@
 import { NODE_ENV } from "../config/env.js";
 import validators from "../validators/inputValidators.js";
+import { logger } from "../utils/logger.js";
 import { invalidInputError } from "../utils/customError.js";
 import {
   insertUser,
@@ -126,6 +127,8 @@ const register = async (req, res, next) => {
       maxAge: REFRESH_TOKEN_MAX_AGE,
     });
 
+    logger.info("User registered", { user: newUser.user_id });
+
     res.status(201).json({
       success: true,
       message: "User successfully created",
@@ -168,12 +171,15 @@ const login = async (req, res, next) => {
       foundedUser && (await comparePassword(password, foundedUser.password));
 
     if (!isPasswordMatch) {
+      // fara email in log; user doar daca exista contul (parola gresita)
+      logger.warn("Login failed", { user: foundedUser?.user_id, ip: req.ip });
       return res
         .status(401)
         .json({ success: false, message: "Invalid credentials" });
     }
 
     if (!foundedUser.is_active) {
+      logger.warn("Login on a disabled account", { user: foundedUser.user_id });
       return res
         .status(403)
         .json({ success: false, message: "Account is disabled" });
@@ -205,6 +211,8 @@ const login = async (req, res, next) => {
       ...COOKIE_OPTIONS,
       maxAge: REFRESH_TOKEN_MAX_AGE,
     });
+
+    logger.info("User logged in", { user: foundedUser.user_id });
 
     delete foundedUser.password;
     delete foundedUser.is_active;
@@ -359,6 +367,11 @@ const refresh = async (req, res, next) => {
     }
 
     if (storedToken.reused) {
+      // un refresh token deja inlocuit a fost folosit din nou: probabil furat
+      logger.warn("Refresh token reuse, all sessions closed", {
+        user: storedToken.user_id,
+        ip: req.ip,
+      });
       await deleteUserRefreshTokens(storedToken.user_id);
       res.clearCookie("accessToken", COOKIE_OPTIONS);
       res.clearCookie("refreshToken", COOKIE_OPTIONS);
@@ -471,6 +484,7 @@ const updateUserPassword = async (req, res, next) => {
       req.cookies.refreshToken,
     );
 
+    logger.info("Password changed", { user: req.user.user_id });
     res.status(204).end();
   } catch (err) {
     next(err);
@@ -512,6 +526,7 @@ const resetData = async (req, res, next) => {
 
     const user = await fetchUserInfoById(req.user.user_id);
     await resetUserData(req.user.user_id, user?.language ?? "ro");
+    logger.info("User data reset", { user: req.user.user_id });
 
     res.status(204).end();
   } catch (err) {
@@ -527,6 +542,7 @@ const deleteAccount = async (req, res, next) => {
     if (failed) return failed;
 
     await deleteUserAccount(req.user.user_id);
+    logger.info("Account deleted", { user: req.user.user_id });
 
     res.clearCookie("accessToken", COOKIE_OPTIONS);
     res.clearCookie("refreshToken", COOKIE_OPTIONS);
